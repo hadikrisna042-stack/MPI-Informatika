@@ -1,0 +1,1994 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Petualangan Mencari Harta Karun Perangkat Keras</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #87CEEB; /* Sky blue */
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            user-select: none;
+        }
+        h1, h2, h3, h4, .fredoka {
+            font-family: 'Fredoka One', cursive;
+        }
+        
+        /* Utility Classes */
+        .hidden-screen { display: none !important; }
+        .screen-container { min-height: 100vh; padding-top: 60px; padding-bottom: 20px; }
+        
+        /* Map Styles */
+        .map-bg {
+            background-image: url('data:image/svg+xml;utf8,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="%23fef3c7"/><path d="M0 0 Q 50 50 100 0" stroke="%23fde68a" stroke-width="2" fill="none"/></svg>');
+            background-size: 200px;
+            background-color: #fef3c7;
+            position: relative;
+        }
+        .map-path {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .level-node {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+        .level-node.locked { filter: grayscale(100%) brightness(0.7); cursor: not-allowed; }
+        .level-node.unlocked { cursor: pointer; animation: pulse 2s infinite; }
+        .level-node.completed { cursor: pointer; }
+        .level-node:hover:not(.locked) { transform: translate(-50%, -50%) scale(1.1); }
+        
+        /* Animations */
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.05); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+        @keyframes bounce-sm {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        .animate-bounce-sm { animation: bounce-sm 2s infinite; }
+        .animate-shake { animation: shake 0.5s ease-in-out; }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        
+        /* Drag and Drop Styles */
+        .draggable { cursor: grab; touch-action: none; }
+        .draggable:active { cursor: grabbing; }
+        .dropzone.drag-over { background-color: rgba(255, 255, 255, 0.5); border: 2px dashed #4ade80; }
+        
+        /* Snake & Ladder Specifics */
+        .sl-board {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+            background: #d97706;
+            padding: 8px;
+            border-radius: 12px;
+            border: 4px solid #78350f;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .sl-cell {
+            background-color: #fef3c7;
+            border-radius: 8px;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            position: relative;
+            font-size: 1.2rem;
+            box-shadow: inset 0 -3px 0 rgba(0,0,0,0.1);
+        }
+        .sl-cell:nth-child(odd) { background-color: #fde68a; }
+        .sl-cell:nth-child(even) { background-color: #fef3c7; }
+        
+        .pawn {
+            position: absolute;
+            font-size: 1.5rem;
+            transition: all 0.4s ease-in-out;
+            z-index: 20;
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5));
+        }
+        .pawn.p1 { transform: translate(-10px, -10px); }
+        .pawn.p2 { transform: translate(10px, 10px); }
+        
+        .dice-roll-anim { animation: spin-bounce 0.6s ease-out; }
+        @keyframes spin-bounce {
+            0% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-30px) rotate(180deg); }
+            100% { transform: translateY(0) rotate(360deg); }
+        }
+
+        /* Story Mode RPG Styles */
+        .rpg-dialog-box {
+            background-color: #fef3c7; /* parchment */
+            border: 8px solid #78350f; /* brown border */
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.1), 0 10px 25px rgba(0,0,0,0.5);
+            border-radius: 16px;
+        }
+        .rpg-name-tag {
+            background-color: #78350f;
+            color: #fef3c7;
+            border: 4px solid #451a03;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .typewriter-text::after {
+            content: '|';
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+        
+        /* Modals & Scrollbar */
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.7); backdrop-filter: blur(3px); }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- HUD -->
+    <div id="hud" class="fixed top-0 w-full bg-blue-900 border-b-4 border-blue-950 text-white p-2 z-50 flex justify-between items-center shadow-lg px-4 md:px-8">
+        <div class="flex items-center gap-2">
+            <div class="bg-blue-800 p-1 rounded-full border-2 border-blue-400">👦</div>
+            <span class="font-bold hidden md:inline">Kiko</span>
+        </div>
+        <div class="flex gap-3 md:gap-6 text-sm md:text-base font-bold fredoka">
+            <div class="flex items-center gap-1" title="Stars"><span class="text-yellow-400 text-xl drop-shadow-md">⭐</span> <span id="hud-stars">0</span></div>
+            <div class="flex items-center gap-1" title="Coins"><span class="text-yellow-500 text-xl drop-shadow-md">🪙</span> <span id="hud-coins">0</span></div>
+            <div class="flex items-center gap-1" title="Gems"><span class="text-blue-300 text-xl drop-shadow-md">💎</span> <span id="hud-gems">0</span></div>
+            <div class="flex items-center gap-1" title="XP"><span class="text-purple-400 text-xl drop-shadow-md">⚡</span> <span id="hud-xp">0</span></div>
+        </div>
+    </div>
+
+    <!-- MAP SCREEN -->
+    <div id="screen-map" class="screen-container map-bg relative">
+        <svg class="map-path" id="svg-paths">
+            <!-- Paths will be drawn by JS -->
+        </svg>
+
+        <!-- Start Camp -->
+        <div id="node-start" class="level-node unlocked" style="top: 15%; left: 20%;" onclick="startLevel(0)">
+            <div class="text-4xl">🏕️</div>
+            <div class="bg-white px-2 py-1 rounded-lg shadow border-2 border-amber-800 text-xs font-bold text-center mt-1 fredoka">START CAMP</div>
+            <div class="absolute -top-10 -right-16 bg-white p-2 rounded-xl shadow-lg border-2 border-blue-400 text-xs w-32 hidden md:block bubble-anim">
+                Ayo mulai petualangan!
+            </div>
+        </div>
+
+        <!-- Level 1 -->
+        <div id="node-1" class="level-node locked" style="top: 30%; left: 45%;" onclick="startLevel(1)">
+            <div class="text-4xl">🌳</div>
+            <div class="bg-white px-2 py-1 rounded-lg shadow border-2 border-green-700 text-xs font-bold text-center mt-1 fredoka">HARDWARE FOREST</div>
+            <div id="check-1" class="absolute -top-2 -right-2 text-green-500 text-xl hidden">✅</div>
+        </div>
+
+        <!-- Level 2 -->
+        <div id="node-2" class="level-node locked" style="top: 25%; left: 75%;" onclick="startLevel(2)">
+            <div class="text-4xl">🏫</div>
+            <div class="bg-white px-2 py-1 rounded-lg shadow border-2 border-blue-700 text-xs font-bold text-center mt-1 fredoka">KNOWLEDGE ISLAND</div>
+            <div id="check-2" class="absolute -top-2 -right-2 text-green-500 text-xl hidden">✅</div>
+        </div>
+
+        <!-- Level 3 -->
+        <div id="node-3" class="level-node locked" style="top: 50%; left: 80%;" onclick="startLevel(3)">
+            <div class="text-4xl">🧩</div>
+            <div class="bg-white px-2 py-1 rounded-lg shadow border-2 border-purple-700 text-xs font-bold text-center mt-1 fredoka">WORD PUZZLE VALLEY</div>
+            <div id="check-3" class="absolute -top-2 -right-2 text-green-500 text-xl hidden">✅</div>
+        </div>
+
+        <!-- Level 4 -->
+        <div id="node-4" class="level-node locked" style="top: 65%; left: 55%;" onclick="startLevel(4)">
+            <div class="text-4xl">🏝️</div>
+            <div class="bg-white px-2 py-1 rounded-lg shadow border-2 border-cyan-600 text-xs font-bold text-center mt-1 fredoka">HARDWARE BEACH</div>
+            <div id="check-4" class="absolute -top-2 -right-2 text-green-500 text-xl hidden">✅</div>
+        </div>
+
+        <!-- Level 5 -->
+        <div id="node-5" class="level-node locked" style="top: 85%; left: 35%;" onclick="startLevel(5)">
+            <div class="text-4xl">🔧</div>
+            <div class="bg-white px-2 py-1 rounded-lg shadow border-2 border-gray-700 text-xs font-bold text-center mt-1 fredoka">COMPUTER WORKSHOP</div>
+            <div id="check-5" class="absolute -top-2 -right-2 text-green-500 text-xl hidden">✅</div>
+        </div>
+
+        <!-- Level 6 (Snake & Ladder) -->
+        <div id="node-6" class="level-node locked" style="top: 70%; left: 15%;" onclick="startLevel(6)">
+            <div class="text-4xl">🎲</div>
+            <div class="bg-white px-2 py-1 rounded-lg shadow border-2 border-orange-600 text-xs font-bold text-center mt-1 fredoka">GAME ISLAND</div>
+            <div id="check-6" class="absolute -top-2 -right-2 text-green-500 text-xl hidden">✅</div>
+        </div>
+
+        <!-- Level 7 -->
+        <div id="node-7" class="level-node locked" style="top: 45%; left: 25%;" onclick="startLevel(7)">
+            <div class="text-4xl">🏰</div>
+            <div class="bg-white px-2 py-1 rounded-lg shadow border-2 border-indigo-800 text-xs font-bold text-center mt-1 fredoka">COMPUTER CASTLE</div>
+            <div id="check-7" class="absolute -top-2 -right-2 text-green-500 text-xl hidden">✅</div>
+        </div>
+
+        <!-- Final -->
+        <div id="node-8" class="level-node locked" style="top: 30%; left: 10%;" onclick="startLevel(8)">
+            <div class="text-5xl">💎</div>
+            <div class="bg-white px-2 py-1 rounded-lg shadow border-2 border-yellow-500 text-xs font-bold text-center mt-1 fredoka">TREASURE CHEST</div>
+        </div>
+    </div>
+
+    <!-- RPG STORY MODE SCREEN -->
+    <div id="screen-story" class="screen-container hidden-screen flex flex-col relative overflow-hidden transition-all duration-500">
+        <!-- Dynamic Background Layer -->
+        <div id="story-bg" class="absolute inset-0 z-0 bg-blue-300 transition-colors duration-1000 flex items-center justify-center opacity-40">
+            <div id="story-bg-emoji" class="text-[300px] opacity-20">🏝️</div>
+        </div>
+
+        <!-- Character Display Area (Top/Middle) -->
+        <div class="flex-grow flex items-end justify-center pb-4 z-10 px-4">
+            <div id="story-character-container" class="relative animate-float transition-all duration-300 transform scale-100">
+                <div id="story-character-avatar" class="text-9xl drop-shadow-2xl">👦</div>
+                <div id="story-character-expr" class="text-5xl absolute -top-2 -right-4 bg-white rounded-full p-1 shadow-lg border-2 border-gray-200">😊</div>
+            </div>
+        </div>
+
+        <!-- Dialog Box Area (Bottom) -->
+        <div class="z-20 w-full max-w-4xl mx-auto px-4 pb-6">
+            <div class="rpg-dialog-box relative p-6 cursor-pointer transform transition hover:scale-[1.01]" onclick="handleDialogClick()">
+                
+                <!-- Character Name Tag -->
+                <div id="story-name-tag" class="rpg-name-tag absolute -top-6 left-6 px-6 py-1 rounded-lg font-bold text-xl fredoka tracking-wider">
+                    KIKO
+                </div>
+
+                <!-- Dialog Controls / Skip -->
+                <button onclick="skipStory(event)" class="absolute -top-4 right-6 bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-4 rounded-full text-xs shadow-md border-2 border-white transition transform hover:scale-105 active:scale-95 z-30">
+                    ⏩ SKIP
+                </button>
+
+                <!-- Text Content -->
+                <div class="min-h-[80px] md:min-h-[100px] flex flex-col justify-between">
+                    <p id="story-text" class="text-xl md:text-2xl font-bold text-amber-950 leading-relaxed"></p>
+                    
+                    <!-- Choices Container (Hidden by default) -->
+                    <div id="story-choices" class="hidden flex-col gap-2 mt-4">
+                        <!-- Choices injected here -->
+                    </div>
+
+                    <!-- Next Indicator -->
+                    <div id="story-next-indicator" class="self-end mt-2 text-amber-800 font-bold animate-pulse text-lg hidden">
+                        ▶ LANJUT
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- LEVEL 1: HARDWARE FOREST (1) - Interactive Learning -->
+    <div id="screen-1" class="screen-container hidden-screen bg-green-800 flex flex-col items-center justify-center p-4">
+        <div class="bg-green-100 p-6 rounded-3xl shadow-xl border-4 border-green-900 w-full max-w-3xl flex flex-col h-[80vh]">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-green-900 fredoka">🌳 HARDWARE FOREST</h2>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-green-300 mb-4 text-sm text-gray-700">
+                <p><strong>📚 MISI:</strong> Klik perangkat yang ada di hutan ajaib ini untuk mempelajarinya. Pelajari semua (5 kategori) untuk menyelesaikan misi!</p>
+            </div>
+            
+            <div class="flex-grow bg-green-700 rounded-2xl relative overflow-hidden p-4 border-4 border-green-900 shadow-inner flex flex-wrap justify-center content-center gap-6" id="forest-area">
+                <button onclick="showL1Modal('general')" class="bg-green-100 p-3 rounded-xl shadow-lg border-2 border-green-600 hover:scale-110 transition flex flex-col items-center">
+                    <span class="text-4xl">❓</span><span class="text-xs font-bold mt-1">Apa itu Hardware?</span>
+                </button>
+                <button onclick="showL1Modal('input')" class="bg-green-100 p-3 rounded-xl shadow-lg border-2 border-green-600 hover:scale-110 transition flex flex-col items-center">
+                    <span class="text-4xl">⌨️</span><span class="text-xs font-bold mt-1">Input</span>
+                </button>
+                <button onclick="showL1Modal('processing')" class="bg-green-100 p-3 rounded-xl shadow-lg border-2 border-green-600 hover:scale-110 transition flex flex-col items-center">
+                    <span class="text-4xl">🧠</span><span class="text-xs font-bold mt-1">Processing</span>
+                </button>
+                <button onclick="showL1Modal('output')" class="bg-green-100 p-3 rounded-xl shadow-lg border-2 border-green-600 hover:scale-110 transition flex flex-col items-center">
+                    <span class="text-4xl">🖥️</span><span class="text-xs font-bold mt-1">Output</span>
+                </button>
+                <button onclick="showL1Modal('storage')" class="bg-green-100 p-3 rounded-xl shadow-lg border-2 border-green-600 hover:scale-110 transition flex flex-col items-center">
+                    <span class="text-4xl">💾</span><span class="text-xs font-bold mt-1">Storage</span>
+                </button>
+            </div>
+
+            <div class="mt-4 text-center">
+                <button id="btn-finish-l1" onclick="completeLevel1()" class="bg-gray-400 text-white font-bold py-3 px-8 rounded-full border-b-4 border-gray-500 cursor-not-allowed fredoka w-full" disabled>
+                    BACA SEMUA MATERI DULU
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEVEL 2: KNOWLEDGE ISLAND (2) - Quiz -->
+    <div id="screen-2" class="screen-container hidden-screen bg-blue-400 flex flex-col items-center justify-center p-4">
+        <div class="bg-white p-6 rounded-3xl shadow-xl border-4 border-blue-900 w-full max-w-2xl relative">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-blue-900 fredoka">🏫 KNOWLEDGE ISLAND</h2>
+                <div class="font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Soal <span id="q-current">1</span>/10</div>
+            </div>
+            
+            <div id="quiz-container">
+                <div class="w-full bg-gray-200 rounded-full h-2.5 mb-6">
+                  <div id="quiz-progress" class="bg-blue-600 h-2.5 rounded-full" style="width: 10%"></div>
+                </div>
+                
+                <h3 id="question-text" class="text-xl font-bold mb-6 text-center text-gray-800">Loading question...</h3>
+                
+                <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Options injected via JS -->
+                </div>
+            </div>
+
+            <div id="quiz-feedback" class="hidden text-center p-4 rounded-xl mt-4 border-2">
+                <h4 id="feedback-title" class="text-2xl font-bold fredoka mb-2"></h4>
+                <p id="feedback-text" class="text-gray-700"></p>
+                <button id="btn-next-q" onclick="nextQuestion()" class="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-full border-b-4 border-blue-700">Lanjut</button>
+            </div>
+
+            <div id="quiz-result" class="hidden text-center p-4">
+                <div class="text-5xl mb-2">🏆</div>
+                <h3 class="text-2xl font-bold text-yellow-600 fredoka mb-4">QUIZ COMPLETE!</h3>
+                <div class="grid grid-cols-2 gap-4 mb-6 text-lg font-bold">
+                    <div class="bg-green-100 text-green-700 p-2 rounded-xl">Correct: <span id="res-correct">0</span></div>
+                    <div class="bg-red-100 text-red-700 p-2 rounded-xl">Wrong: <span id="res-wrong">0</span></div>
+                    <div class="bg-purple-100 text-purple-700 p-2 rounded-xl">XP Earned: <span id="res-xp">0</span></div>
+                    <div class="bg-yellow-100 text-yellow-700 p-2 rounded-xl">Coins: <span id="res-coins">0</span></div>
+                </div>
+                <button onclick="triggerLevelOutro(2)" class="bg-green-500 hover:bg-green-600 text-white text-xl font-bold py-3 px-8 rounded-full border-b-4 border-green-700 w-full fredoka shadow-lg">
+                    AMBIL HADIAH & LANJUT
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEVEL 3: WORD PUZZLE VALLEY (3) - Letter Sort -->
+    <div id="screen-3" class="screen-container hidden-screen bg-purple-300 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <!-- Decoration -->
+        <div class="absolute top-10 left-10 text-6xl opacity-50">🧩</div>
+        <div class="absolute bottom-10 right-10 text-6xl opacity-50">🔤</div>
+
+        <div class="bg-white p-6 rounded-3xl shadow-xl border-4 border-purple-900 w-full max-w-3xl z-10 text-center">
+            <h2 class="text-2xl font-bold text-purple-900 fredoka mb-2">🧩 WORD PUZZLE VALLEY</h2>
+            <p class="text-gray-600 mb-4">Susun balok huruf menjadi nama perangkat keras!</p>
+            
+            <div class="flex justify-between items-center mb-6 px-4">
+                <div class="font-bold text-gray-500">Kata <span id="word-current-num">1</span>/8</div>
+                <div id="word-target-emoji" class="text-5xl drop-shadow-md animate-bounce-sm">🖥️</div>
+            </div>
+
+            <!-- Drop Zones -->
+            <div id="word-drop-zones" class="flex flex-wrap justify-center gap-2 mb-8 min-h-[60px]">
+                <!-- Empty boxes injected via JS -->
+            </div>
+
+            <!-- Draggable Letters -->
+            <div id="word-drag-letters" class="flex flex-wrap justify-center gap-2 mb-8 bg-purple-50 p-4 rounded-xl border border-purple-200 min-h-[80px]">
+                <!-- Letters injected via JS -->
+            </div>
+
+            <div id="word-feedback" class="h-12 font-bold text-xl fredoka mb-4"></div>
+
+            <button id="btn-check-word" onclick="checkWordPuzzle()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full border-b-4 border-blue-700 shadow-md transition transform active:scale-95 hidden w-full max-w-md mx-auto">
+                CEK JAWABAN
+            </button>
+            
+            <button id="btn-finish-l3" onclick="triggerLevelOutro(3)" class="bg-green-500 hover:bg-green-600 text-white text-xl font-bold py-3 px-8 rounded-full border-b-4 border-green-700 w-full fredoka shadow-lg hidden max-w-md mx-auto">
+                SELESAIKAN LEVEL
+            </button>
+        </div>
+    </div>
+
+    <!-- LEVEL 4: HARDWARE BEACH (4) - Drag & Drop Categories -->
+    <div id="screen-4" class="screen-container hidden-screen bg-cyan-200 flex flex-col p-4 relative overflow-hidden">
+        <div class="absolute bottom-0 w-full h-24 bg-yellow-200 rounded-t-full opacity-50 z-0"></div> <!-- Sand -->
+        
+        <div class="bg-white/90 backdrop-blur-sm p-4 rounded-3xl shadow-xl border-4 border-cyan-800 w-full max-w-5xl mx-auto z-10 flex flex-col h-[85vh]">
+            <h2 class="text-2xl font-bold text-cyan-900 fredoka mb-2 text-center">🏝️ HARDWARE BEACH</h2>
+            <p class="text-gray-700 text-center text-sm mb-4">Seret perangkat keras ke keranjang kategori yang benar!</p>
+
+            <div class="flex flex-col md:flex-row gap-4 h-full">
+                <!-- Source Pool -->
+                <div class="md:w-1/3 bg-blue-50 p-4 rounded-xl border-2 border-blue-200 overflow-y-auto flex flex-wrap gap-3 content-start justify-center" id="hw-pool">
+                    <!-- Items generated by JS -->
+                </div>
+
+                <!-- Targets -->
+                <div class="md:w-2/3 grid grid-cols-2 gap-4">
+                    <div class="bg-blue-100 rounded-xl p-3 border-2 border-blue-400 flex flex-col">
+                        <div class="text-center font-bold text-blue-800 border-b-2 border-blue-300 pb-2 mb-2 fredoka">🔵 INPUT</div>
+                        <div class="flex-grow flex flex-wrap gap-2 dropzone p-2 rounded bg-white/50" data-category="input" id="drop-input"></div>
+                    </div>
+                    <div class="bg-yellow-100 rounded-xl p-3 border-2 border-yellow-400 flex flex-col">
+                        <div class="text-center font-bold text-yellow-800 border-b-2 border-yellow-300 pb-2 mb-2 fredoka">🟡 PROCESSING</div>
+                        <div class="flex-grow flex flex-wrap gap-2 dropzone p-2 rounded bg-white/50" data-category="processing" id="drop-processing"></div>
+                    </div>
+                    <div class="bg-green-100 rounded-xl p-3 border-2 border-green-400 flex flex-col">
+                        <div class="text-center font-bold text-green-800 border-b-2 border-green-300 pb-2 mb-2 fredoka">🟢 OUTPUT</div>
+                        <div class="flex-grow flex flex-wrap gap-2 dropzone p-2 rounded bg-white/50" data-category="output" id="drop-output"></div>
+                    </div>
+                    <div class="bg-purple-100 rounded-xl p-3 border-2 border-purple-400 flex flex-col">
+                        <div class="text-center font-bold text-purple-800 border-b-2 border-purple-300 pb-2 mb-2 fredoka">🟣 STORAGE</div>
+                        <div class="flex-grow flex flex-wrap gap-2 dropzone p-2 rounded bg-white/50" data-category="storage" id="drop-storage"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 text-center flex flex-col items-center">
+                <div id="l4-feedback" class="font-bold text-lg mb-2 h-6"></div>
+                <button id="btn-finish-l4" onclick="triggerLevelOutro(4)" class="bg-green-500 hover:bg-green-600 text-white text-xl font-bold py-3 px-8 rounded-full border-b-4 border-green-700 w-full max-w-md fredoka hidden shadow-lg">
+                    AMBIL HADIAH & LANJUT
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEVEL 5: COMPUTER WORKSHOP (5) - Build PC -->
+    <div id="screen-5" class="screen-container hidden-screen bg-gray-700 flex flex-col p-4 relative">
+        <div class="bg-gray-100 p-4 rounded-3xl shadow-xl border-4 border-gray-900 w-full max-w-4xl mx-auto flex flex-col h-[85vh]">
+            <h2 class="text-2xl font-bold text-gray-800 fredoka mb-2 text-center">🔧 COMPUTER WORKSHOP</h2>
+            <div id="pc-step-instr" class="bg-yellow-200 text-yellow-900 p-2 rounded-lg text-center font-bold text-sm mb-4 border border-yellow-400">STEP 1: Pasang Motherboard</div>
+
+            <div class="flex flex-col md:flex-row gap-4 h-full overflow-hidden">
+                <!-- Components -->
+                <div class="md:w-1/3 bg-white p-4 rounded-xl border-2 border-gray-300 flex flex-wrap gap-3 content-start justify-center" id="pc-parts">
+                    <!-- Parts JS -->
+                </div>
+
+                <!-- Case Area -->
+                <div class="md:w-2/3 bg-gray-800 rounded-xl border-4 border-gray-600 relative flex items-center justify-center overflow-hidden">
+                    <div class="absolute inset-4 border-4 border-gray-700 rounded-lg bg-gray-900 pointer-events-none opacity-50"></div>
+                    
+                    <div class="relative w-[300px] h-[400px]">
+                        <div id="slot-motherboard" class="absolute w-[200px] h-[250px] top-[50px] left-[50px] border-2 border-dashed border-gray-500 bg-gray-700/50 flex items-center justify-center rounded dropzone text-white/50 text-sm" data-part="motherboard">Motherboard</div>
+                        <div id="slot-processor" class="absolute w-[60px] h-[60px] top-[100px] left-[120px] border-2 border-dashed border-gray-400 bg-gray-600/50 flex items-center justify-center rounded-sm dropzone hidden z-10 text-xs text-center text-white/50" data-part="processor">CPU</div>
+                        <div id="slot-ram" class="absolute w-[20px] h-[100px] top-[80px] left-[190px] border-2 border-dashed border-gray-400 bg-gray-600/50 flex items-center justify-center rounded-sm dropzone hidden z-10 text-[10px] text-white/50" data-part="ram">RAM</div>
+                        <div id="slot-storage" class="absolute w-[80px] h-[120px] top-[260px] left-[10px] border-2 border-dashed border-gray-500 bg-gray-700/50 flex items-center justify-center rounded dropzone hidden text-xs text-white/50" data-part="storage">Storage</div>
+                        <div id="slot-psu" class="absolute w-[120px] h-[80px] bottom-[10px] left-[10px] border-2 border-dashed border-gray-500 bg-gray-700/50 flex items-center justify-center rounded dropzone hidden text-xs text-white/50" data-part="psu">PSU</div>
+                        <div id="slot-gpu" class="absolute w-[160px] h-[40px] top-[180px] left-[50px] border-2 border-dashed border-gray-400 bg-gray-600/50 flex items-center justify-center rounded-sm dropzone hidden z-10 text-xs text-white/50" data-part="gpu">GPU slot</div>
+                        <div id="slot-cooler" class="absolute w-[70px] h-[70px] top-[95px] left-[115px] border-2 border-dashed border-blue-400 bg-blue-900/30 flex items-center justify-center rounded-full dropzone hidden z-20 text-[10px] text-white" data-part="cooler">Cooler</div>
+                        
+                        <div id="pc-monitor" class="absolute inset-0 bg-black z-30 hidden flex flex-col items-center justify-center text-green-500 font-mono text-xl border-4 border-gray-600 rounded">
+                            <span class="animate-pulse font-bold text-3xl mb-4">SYSTEM READY!</span>
+                            <span class="text-6xl mt-4 animate-float">🖥️</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4 text-center flex justify-center">
+                 <button id="btn-finish-l5" onclick="triggerLevelOutro(5)" class="bg-green-500 hover:bg-green-600 text-white text-xl font-bold py-3 px-8 rounded-full border-b-4 border-green-700 w-full max-w-md fredoka hidden shadow-lg">
+                    SELESAIKAN PERAKITAN
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEVEL 6: GAME ISLAND (6) - Snake & Ladder (2 Player) -->
+    <div id="screen-6" class="screen-container hidden-screen bg-orange-200 flex flex-col p-2 md:p-4">
+        
+        <!-- Screen 6A: Character Selection -->
+        <div id="sl-char-select" class="bg-white p-6 rounded-3xl shadow-xl border-4 border-orange-600 w-full max-w-4xl mx-auto flex flex-col">
+            <h2 class="text-3xl font-bold text-orange-800 fredoka mb-2 text-center">🎲 HARDWARE GAME ISLAND</h2>
+            <p class="text-center text-orange-600 font-bold mb-6">Pilih Karakter Petualangmu!</p>
+            
+            <div class="flex flex-col md:flex-row justify-between items-center bg-orange-100 p-2 rounded-xl mb-4 border border-orange-300 gap-2">
+                <div id="sl-indicator-p1" class="w-full text-center md:text-left text-lg font-bold text-blue-700 px-4 py-2 bg-blue-100 rounded-lg border-2 border-blue-400">👤 PLAYER 1 (Memilih...)</div>
+                <div id="sl-indicator-p2" class="w-full text-center md:text-right text-lg font-bold text-gray-400 px-4 py-2">👤 PLAYER 2 (Menunggu...)</div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" id="sl-char-cards">
+                <!-- Character Cards Generate here -->
+                <div class="char-card bg-white border-4 border-gray-200 p-4 rounded-2xl text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition transform hover:-translate-y-1 relative" onclick="selectSLChar('kiko')">
+                    <div class="text-6xl mb-2">👦</div>
+                    <div class="font-bold fredoka text-lg">KIKO</div>
+                    <div class="text-xs text-gray-500">The Explorer</div>
+                </div>
+                <div class="char-card bg-white border-4 border-gray-200 p-4 rounded-2xl text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition transform hover:-translate-y-1 relative" onclick="selectSLChar('luna')">
+                    <div class="text-6xl mb-2">👧</div>
+                    <div class="font-bold fredoka text-lg">LUNA</div>
+                    <div class="text-xs text-gray-500">The Adventurer</div>
+                </div>
+                <div class="char-card bg-white border-4 border-gray-200 p-4 rounded-2xl text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition transform hover:-translate-y-1 relative" onclick="selectSLChar('robo')">
+                    <div class="text-6xl mb-2">🤖</div>
+                    <div class="font-bold fredoka text-lg">ROBO</div>
+                    <div class="text-xs text-gray-500">The Bot</div>
+                </div>
+                <div class="char-card bg-white border-4 border-gray-200 p-4 rounded-2xl text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition transform hover:-translate-y-1 relative" onclick="selectSLChar('byte')">
+                    <div class="text-6xl mb-2">🐱</div>
+                    <div class="font-bold fredoka text-lg">BYTE</div>
+                    <div class="text-xs text-gray-500">Smart Cat</div>
+                </div>
+            </div>
+
+            <div id="sl-start-game-btn-area" class="hidden text-center flex-col items-center">
+                <div class="flex items-center gap-4 mb-4 text-2xl font-bold fredoka justify-center w-full bg-yellow-100 p-4 rounded-xl shadow-inner">
+                    <span id="sl-vs-p1" class="text-blue-700">👦 Kiko</span> 
+                    <span class="text-red-500 text-sm">VS</span> 
+                    <span id="sl-vs-p2" class="text-purple-700">🤖 Robo</span>
+                </div>
+                <button onclick="startSLGame()" class="bg-green-500 hover:bg-green-600 text-white text-2xl font-bold py-4 px-10 rounded-full border-b-4 border-green-700 shadow-xl transform transition hover:scale-105 active:scale-95 fredoka w-full max-w-md">
+                    🎲 START GAME
+                </button>
+            </div>
+        </div>
+
+        <!-- Screen 6B: Game Board -->
+        <div id="sl-game-board" class="hidden flex-col items-center w-full">
+            
+            <!-- Turn Indicators -->
+            <div class="w-full max-w-2xl flex justify-between gap-2 md:gap-4 mb-4">
+                <div id="sl-hud-p1" class="flex-1 bg-blue-100 border-4 border-blue-500 p-2 rounded-xl text-center shadow-lg transition-transform transform scale-105">
+                    <div class="text-xs font-bold text-blue-800">PLAYER 1</div>
+                    <div class="text-3xl md:text-4xl" id="sl-icon-p1">👦</div>
+                    <div class="font-bold fredoka text-blue-900 mt-1 text-sm md:text-base" id="sl-name-p1">Kiko</div>
+                </div>
+                
+                <!-- Dice Area center -->
+                <div class="flex flex-col items-center justify-center w-24 md:w-32 bg-white rounded-xl shadow-lg border-2 border-gray-200 p-2">
+                    <div id="sl-dice-result" class="text-4xl md:text-5xl mb-2">🎲</div>
+                    <button id="btn-roll-dice" onclick="rollDice()" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-2 md:px-4 rounded-full border-b-4 border-orange-700 active:scale-95 text-xs md:text-sm w-full">
+                        ROLL
+                    </button>
+                    <div id="sl-turn-status" class="text-[10px] md:text-xs font-bold text-gray-500 mt-1">P1's Turn</div>
+                </div>
+
+                <div id="sl-hud-p2" class="flex-1 bg-gray-100 border-4 border-gray-300 p-2 rounded-xl text-center shadow opacity-70">
+                    <div class="text-xs font-bold text-gray-500">PLAYER 2</div>
+                    <div class="text-3xl md:text-4xl" id="sl-icon-p2">🤖</div>
+                    <div class="font-bold fredoka text-gray-600 mt-1 text-sm md:text-base" id="sl-name-p2">Robo</div>
+                </div>
+            </div>
+
+            <!-- Feedback Bubble -->
+            <div id="sl-msg" class="bg-white/90 px-6 py-2 rounded-full font-bold text-sm md:text-lg text-center mb-2 shadow-sm border border-gray-200 h-10 flex items-center justify-center opacity-0 transition-opacity">
+                Welcome to Game Island!
+            </div>
+
+            <!-- The Board (30 Squares) -->
+            <div class="sl-board relative" id="board-container">
+                <!-- Cells generated by JS to keep HTML clean -->
+                <!-- Pawns -->
+                <div id="pawn-1" class="pawn p1 drop-shadow-lg">👦</div>
+                <div id="pawn-2" class="pawn p2 drop-shadow-lg">🤖</div>
+            </div>
+            
+            <div class="text-center text-xs md:text-sm text-gray-700 mt-4 bg-white/70 px-4 py-2 rounded-full font-bold shadow-sm">
+                Menuju ke Kotak 30 (Treasure Gate) untuk menang!
+            </div>
+        </div>
+
+        <!-- Screen 6C: Winner Screen -->
+        <div id="sl-winner-screen" class="hidden bg-white p-8 rounded-3xl shadow-2xl border-4 border-yellow-500 w-full max-w-lg mx-auto text-center relative mt-10">
+            <div class="text-8xl absolute -top-12 left-1/2 transform -translate-x-1/2 animate-bounce-sm">🏆</div>
+            <h2 class="text-3xl md:text-4xl font-bold text-yellow-600 fredoka mt-10 mb-2" id="sl-win-title">PLAYER 1 WINS!</h2>
+            <div class="text-6xl mb-4 animate-float" id="sl-win-icon">👦</div>
+            <p class="text-lg text-gray-700 mb-6 font-bold" id="sl-win-msg">Kiko berhasil menemukan jalan menuju harta karun!</p>
+            
+            <div class="bg-yellow-100 border border-yellow-300 rounded-xl p-4 mb-6 text-left">
+                <div class="font-bold text-yellow-800 border-b border-yellow-300 pb-1 mb-2 text-sm md:text-base">REWARDS</div>
+                <div class="flex justify-between items-center text-xs md:text-sm font-bold text-gray-700"><span>Pemenang:</span> <span class="text-green-600">+100 XP, +50 Coins, +3 Stars</span></div>
+                <div class="flex justify-between items-center text-xs md:text-sm font-bold text-gray-700 mt-1"><span>Partisipasi:</span> <span class="text-blue-600">+30 XP, +10 Coins, +1 Star</span></div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4">
+                <button onclick="initSLCharSelect()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded-xl border-b-4 border-gray-400">
+                    🔄 PLAY AGAIN
+                </button>
+                <button onclick="triggerLevelOutro(6)" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl border-b-4 border-green-700 shadow-lg">
+                    🗺️ BACK TO MAP
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- LEVEL 7: COMPUTER CASTLE (7) - Final Challenge -->
+    <div id="screen-7" class="screen-container hidden-screen bg-indigo-200 flex flex-col items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-3xl shadow-xl border-4 border-indigo-900 w-full max-w-2xl text-center relative overflow-hidden">
+            <div class="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><rect width=\'100\' height=\'100\' fill=\'none\' stroke=\'black\' stroke-width=\'2\'/></svg>')]"></div>
+            
+            <h2 class="text-3xl font-bold text-indigo-900 fredoka mb-4 z-10 relative">🏰 COMPUTER CASTLE</h2>
+            <p class="mb-6 font-bold text-gray-700 z-10 relative">Buka 5 pintu kastil dengan menjawab cepat untuk mencapai ruang harta karun!</p>
+
+            <div class="flex justify-center gap-2 md:gap-4 mb-8 z-10 relative">
+                <div id="door-1" class="w-12 h-20 md:w-16 md:h-24 bg-amber-800 border-2 border-amber-950 rounded-t-xl flex flex-col items-center justify-center text-white font-bold shadow-inner relative overflow-hidden transition-all">
+                    <span class="text-2xl door-lock">🔒</span>
+                </div>
+                <div id="door-2" class="w-12 h-20 md:w-16 md:h-24 bg-amber-800 border-2 border-amber-950 rounded-t-xl flex flex-col items-center justify-center text-white font-bold shadow-inner relative overflow-hidden transition-all">
+                    <span class="text-2xl door-lock">🔒</span>
+                </div>
+                <div id="door-3" class="w-12 h-20 md:w-16 md:h-24 bg-amber-800 border-2 border-amber-950 rounded-t-xl flex flex-col items-center justify-center text-white font-bold shadow-inner relative overflow-hidden transition-all">
+                    <span class="text-2xl door-lock">🔒</span>
+                </div>
+                <div id="door-4" class="w-12 h-20 md:w-16 md:h-24 bg-amber-800 border-2 border-amber-950 rounded-t-xl flex flex-col items-center justify-center text-white font-bold shadow-inner relative overflow-hidden transition-all">
+                    <span class="text-2xl door-lock">🔒</span>
+                </div>
+                <div id="door-5" class="w-12 h-20 md:w-16 md:h-24 bg-amber-800 border-2 border-amber-950 rounded-t-xl flex flex-col items-center justify-center text-white font-bold shadow-inner relative overflow-hidden transition-all">
+                    <span class="text-2xl door-lock">🔒</span>
+                </div>
+            </div>
+
+            <div id="castle-challenge" class="bg-indigo-50 p-6 rounded-xl border-2 border-indigo-200 z-10 relative">
+                <h3 id="castle-q" class="text-xl font-bold mb-4 text-indigo-900">Perangkat untuk mengetik teks adalah...</h3>
+                <div id="castle-opts" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Options JS -->
+                </div>
+            </div>
+
+            <div id="castle-success" class="hidden z-10 relative">
+                <h3 class="text-3xl font-bold text-green-600 fredoka mb-4 animate-bounce-sm">🚪 SEMUA PINTU TERBUKA!</h3>
+                <button onclick="triggerLevelOutro(7)" class="bg-yellow-500 hover:bg-yellow-600 text-white text-xl font-bold py-3 px-8 rounded-full border-b-4 border-yellow-700 shadow-xl fredoka w-full">
+                    MASUK TREASURE ROOM
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEVEL 8: TREASURE ROOM (8) - Final Reward -->
+    <div id="screen-8" class="screen-container hidden-screen bg-yellow-100 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div class="absolute inset-0 pointer-events-none" id="confetti-layer"></div>
+        
+        <div class="bg-white p-8 rounded-3xl shadow-2xl border-8 border-yellow-400 w-full max-w-xl text-center z-10 relative" id="treasure-chest-view">
+            <h1 class="text-4xl font-bold text-yellow-600 fredoka mb-6">💎 TREASURE ROOM 💎</h1>
+            
+            <div id="chest" class="text-[120px] cursor-pointer hover:scale-110 transition-transform duration-300 drop-shadow-2xl animate-float" onclick="openChest()">
+                🔒📦
+            </div>
+            <p id="chest-instruction" class="mt-4 font-bold text-gray-500 animate-pulse">Klik peti untuk membuka!</p>
+        </div>
+
+        <div class="bg-white p-6 md:p-8 rounded-3xl shadow-2xl border-4 border-yellow-500 w-full max-w-2xl text-center hidden z-10 relative" id="final-summary-view">
+            <div class="text-7xl mb-2 animate-bounce-sm">🏆</div>
+            <h1 class="text-3xl md:text-4xl font-bold text-yellow-600 fredoka mb-2">TREASURE FOUND!</h1>
+            <h2 class="text-lg md:text-xl font-bold text-indigo-800 mb-6">JUNIOR COMPUTER EXPERT</h2>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6">
+                <div class="bg-yellow-50 p-3 rounded-xl border border-yellow-200">
+                    <div class="text-2xl">⭐</div><div class="font-bold text-yellow-700" id="final-stars">0</div><div class="text-xs text-gray-500">Stars</div>
+                </div>
+                <div class="bg-yellow-50 p-3 rounded-xl border border-yellow-200">
+                    <div class="text-2xl">🪙</div><div class="font-bold text-yellow-700" id="final-coins">0</div><div class="text-xs text-gray-500">Coins</div>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-xl border border-blue-200">
+                    <div class="text-2xl">💎</div><div class="font-bold text-blue-700" id="final-gems">0</div><div class="text-xs text-gray-500">Gems</div>
+                </div>
+                <div class="bg-purple-50 p-3 rounded-xl border border-purple-200">
+                    <div class="text-2xl">⚡</div><div class="font-bold text-purple-700" id="final-xp">0</div><div class="text-xs text-gray-500">XP</div>
+                </div>
+            </div>
+
+            <h3 class="font-bold text-gray-700 mb-2 border-b-2 pb-1 text-left text-sm md:text-base">Badges Terkumpul:</h3>
+            <div class="flex flex-wrap justify-center gap-2 mb-6 text-xs md:text-sm">
+                <span class="bg-green-100 text-green-800 px-2 py-1 rounded shadow-sm font-bold">🌳 Explorer</span>
+                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded shadow-sm font-bold">🎯 Quiz Master</span>
+                <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded shadow-sm font-bold">🧩 Word Master</span>
+                <span class="bg-cyan-100 text-cyan-800 px-2 py-1 rounded shadow-sm font-bold">🏝️ Sorter</span>
+                <span class="bg-gray-200 text-gray-800 px-2 py-1 rounded shadow-sm font-bold">🔧 Builder</span>
+                <span class="bg-orange-100 text-orange-800 px-2 py-1 rounded shadow-sm font-bold">🐍 SL Champ</span>
+            </div>
+
+            <button onclick="location.reload()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full border-b-4 border-blue-700 shadow w-full">
+                MAIN LAGI
+            </button>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="generic-modal" class="fixed inset-0 modal-overlay hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full text-center relative shadow-2xl border-4 border-blue-400 transform scale-95 transition-transform" id="modal-content-box">
+            <button onclick="closeModal()" class="absolute top-2 right-4 text-gray-400 hover:text-gray-800 text-2xl font-bold">&times;</button>
+            <div id="modal-icon" class="text-6xl mb-2">❓</div>
+            <h3 id="modal-title" class="text-2xl font-bold fredoka mb-2 text-blue-800">Title</h3>
+            <div class="bg-blue-50 p-3 rounded-xl mb-4 text-sm text-gray-700 border border-blue-100">
+                <p id="modal-category" class="font-bold text-blue-600 mb-1"></p>
+                <p id="modal-desc"></p>
+            </div>
+            <button onclick="closeModal()" class="bg-blue-500 text-white font-bold py-2 px-6 rounded-full w-full">Tutup</button>
+        </div>
+    </div>
+
+
+    <script>
+        // --- State Management ---
+        let gameState = {
+            xp: 0, coins: 0, stars: 0, gems: 0,
+            unlockedLevels: [0], // Start camp unlocked by default
+            completedLevels: [],
+            currentScreen: 'map',
+            storySeen: {} // Track which story scenes have been played
+        };
+
+        const charsData = {
+            'kiko': {i: '👦', n: 'Kiko'},
+            'luna': {i: '👧', n: 'Luna'},
+            'robo': {i: '🤖', n: 'Robo'},
+            'byte': {i: '🐱', n: 'Byte'}
+        };
+
+        // --- Story Mode Data ---
+        const storyScript = {
+            'prologue': [
+                { char: 'Kiko', expr: '😊', icon: '👦', bg: 'bg-blue-300', bgEmoji: '🏝️', text: "Hai, Explorer! Aku Kiko. Aku menemukan peta menuju harta karun misterius!" },
+                { char: 'Kiko', expr: '🤔', icon: '👦', bg: 'bg-blue-300', bgEmoji: '🗺️', text: "Tapi perjalanan ini tidak mudah. Kita harus memahami dunia komputer untuk membuka jalan menuju harta karun!" },
+                { char: 'Kiko', expr: '💪', icon: '👦', bg: 'bg-blue-300', bgEmoji: '🏴‍☠️', text: "Maukah kamu membantuku menjelajahi peta ini?", 
+                  choices: [
+                    { text: "🏴‍☠️ Ayo, kita mulai!", action: 'next' },
+                    { text: "🗺️ Aku ingin melihat petanya dulu.", action: 'map_explain' }
+                  ] 
+                }
+            ],
+            'map_explain': [
+                { char: 'Kiko', expr: '😊', icon: '👦', bg: 'bg-amber-100', bgEmoji: '🗺️', text: "Peta ini akan menuntun kita melewati hutan, pulau, dan kastil. Mari kita mulai dari Start Camp!" }
+            ],
+            'l1_intro': [
+                { char: 'Kiko', expr: '😮', icon: '👦', bg: 'bg-green-600', bgEmoji: '🌳', text: "Kita sudah sampai di Hardware Forest!" },
+                { char: 'Kiko', expr: '🤔', icon: '👦', bg: 'bg-green-600', bgEmoji: '🖥️', text: "Di sini kita akan mengenal perangkat keras komputer, yaitu bagian komputer yang dapat dilihat dan disentuh." },
+                { char: 'Kiko', expr: '😊', icon: '👦', bg: 'bg-green-600', bgEmoji: '🖱️', text: "Ayo klik benda-benda di sekitar kita untuk mengetahui nama dan fungsinya!" }
+            ],
+            'l1_outro': [
+                { char: 'Kiko', expr: '🎉', icon: '👦', bg: 'bg-green-600', bgEmoji: '🌟', text: "Hebat! Sekarang kamu sudah mengenal berbagai perangkat keras!" },
+                { char: 'Kiko', expr: '💪', icon: '👦', bg: 'bg-blue-400', bgEmoji: '🏫', text: "Ayo lanjut ke pulau berikutnya. Kita perlu menguji pengetahuan kita!" }
+            ],
+            'l2_intro': [
+                { char: 'Kiko', expr: '😊', icon: '👦', bg: 'bg-blue-400', bgEmoji: '🏫', text: "Selamat datang di Knowledge Island!" },
+                { char: 'Kiko', expr: '🤔', icon: '👦', bg: 'bg-blue-400', bgEmoji: '❓', text: "Di sini ada sepuluh tantangan tentang perangkat keras komputer. Gunakan pengetahuan yang sudah kamu pelajari!" }
+            ],
+            'l2_outro': [
+                { char: 'Kiko', expr: '🎉', icon: '👦', bg: 'bg-blue-400', bgEmoji: '🏆', text: "Bagus! Setiap jawaban membuatmu semakin dekat dengan harta karun!" }
+            ],
+            'l3_intro': [
+                { char: 'Kiko', expr: '😮', icon: '👦', bg: 'bg-purple-400', bgEmoji: '🧩', text: "Di lembah ini, nama perangkat keras berantakan menjadi potongan-potongan huruf!" },
+                { char: 'Kiko', expr: '💪', icon: '👦', bg: 'bg-purple-400', bgEmoji: '🔤', text: "Bantu aku menyusunnya kembali agar kita bisa melanjutkan perjalanan." }
+            ],
+            'l3_outro': [
+                { char: 'Kiko', expr: '😊', icon: '👦', bg: 'bg-purple-400', bgEmoji: '✨', text: "Semua kata berhasil disusun! Jalan menuju pantai sudah terbuka!" }
+            ],
+            'l4_intro': [
+                { char: 'Kiko', expr: '😮', icon: '👦', bg: 'bg-cyan-300', bgEmoji: '🏝️', text: "Pantai ini dipenuhi perangkat keras yang tercampur!" },
+                { char: 'Kiko', expr: '🤔', icon: '👦', bg: 'bg-cyan-300', bgEmoji: '📦', text: "Bantu aku menempatkan setiap perangkat ke kelompok yang tepat. (Input, Process, Output, Storage)" }
+            ],
+            'l4_outro': [
+                { char: 'Kiko', expr: '🎉', icon: '👦', bg: 'bg-cyan-300', bgEmoji: '✅', text: "Kerja bagus! Sekarang semua perangkat sudah berada di tempatnya!" }
+            ],
+            'l5_intro': [
+                { char: 'Kiko', expr: '😮', icon: '👦', bg: 'bg-gray-600', bgEmoji: '🔧', text: "Kita menemukan bengkel komputer tua!" },
+                { char: 'Kiko', expr: '🤔', icon: '👦', bg: 'bg-gray-600', bgEmoji: '🖥️', text: "Komputer di sini belum dirakit. Bisakah kamu membantu memasang komponennya?" }
+            ],
+            'l5_outro': [
+                { char: 'Kiko', expr: '🎉', icon: '👦', bg: 'bg-gray-600', bgEmoji: '⚡', text: "Wow! Komputernya berhasil menyala!" }
+            ],
+            'l6_intro': [
+                { char: 'Kiko', expr: '😮', icon: '👦', bg: 'bg-orange-300', bgEmoji: '🎲', text: "Di depan ada permainan ular tangga!" },
+                { char: 'Kiko', expr: '😊', icon: '👦', bg: 'bg-orange-300', bgEmoji: '👥', text: "Kita harus bergiliran melempar dadu. Pilih karaktermu dan ajak temanmu bertanding menuju gerbang harta karun!" }
+            ],
+            'l6_outro': [
+                { char: 'Kiko', expr: '🎉', icon: '👦', bg: 'bg-orange-300', bgEmoji: '🏆', text: "Pertandingan yang seru! Sekarang kita sudah bisa melanjutkan perjalanan menuju kastil!" }
+            ],
+            'l7_intro': [
+                { char: 'Kiko', expr: '😮', icon: '👦', bg: 'bg-indigo-400', bgEmoji: '🏰', text: "Kita akhirnya sampai di Computer Castle!" },
+                { char: 'Kiko', expr: '💪', icon: '👦', bg: 'bg-indigo-400', bgEmoji: '🚪', text: "Untuk membuka pintu terakhir, kita harus membuktikan bahwa kita memahami perangkat keras komputer." }
+            ],
+            'l7_outro': [
+                { char: 'Kiko', expr: '🎉', icon: '👦', bg: 'bg-indigo-400', bgEmoji: '✨', text: "Pintu kastil terbuka! Harta karunnya sudah dekat!" }
+            ],
+            'l8_intro': [
+                { char: 'Kiko', expr: '😮', icon: '👦', bg: 'bg-yellow-300', bgEmoji: '💎', text: "Kita berhasil, Explorer!" },
+                { char: 'Kiko', expr: '🎉', icon: '👦', bg: 'bg-yellow-300', bgEmoji: '🏆', text: "Kita menemukan harta karun karena sudah belajar, berpikir, dan menyelesaikan semua tantangan!" }
+            ]
+        };
+
+        // --- Core UI & Map Functions ---
+
+        const mapNodesData = {
+            'start': {x: 20, y: 15}, '1': {x: 45, y: 30}, '2': {x: 75, y: 25},
+            '3': {x: 80, y: 50}, '4': {x: 55, y: 65}, '5': {x: 35, y: 85},
+            '6': {x: 15, y: 70}, '7': {x: 25, y: 45}, '8': {x: 10, y: 30}
+        };
+        const pathSequence = ['start', '1', '2', '3', '4', '5', '6', '7', '8'];
+
+        function updateHUD() {
+            document.getElementById('hud-xp').textContent = gameState.xp;
+            document.getElementById('hud-coins').textContent = gameState.coins;
+            document.getElementById('hud-stars').textContent = gameState.stars;
+            document.getElementById('hud-gems').textContent = gameState.gems;
+        }
+
+        function addReward(xp=0, coins=0, stars=0, gems=0) {
+            gameState.xp += xp; gameState.coins += coins; 
+            gameState.stars += stars; gameState.gems += gems;
+            updateHUD();
+        }
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen-container').forEach(el => el.classList.add('hidden-screen'));
+            document.getElementById(`screen-${screenId}`).classList.remove('hidden-screen');
+            window.scrollTo(0, 0);
+            gameState.currentScreen = screenId;
+        }
+
+        function backToMap() {
+            showScreen('map');
+            updateMapVisuals();
+        }
+
+        function unlockNextLevel(currentLevelNum) {
+            if(!gameState.completedLevels.includes(currentLevelNum)) {
+                gameState.completedLevels.push(currentLevelNum);
+            }
+            let nextLevel = currentLevelNum + 1;
+            if(nextLevel <= 8 && !gameState.unlockedLevels.includes(nextLevel)) {
+                gameState.unlockedLevels.push(nextLevel);
+            }
+            backToMap();
+        }
+
+        function completeLevel(levelNum) {
+            unlockNextLevel(levelNum);
+        }
+
+        // Modified startLevel to incorporate Story Mode
+        function startLevel(levelNum) {
+            if(levelNum === 0) {
+                if(!gameState.storySeen['prologue']) {
+                    playStory('prologue', () => backToMap());
+                    return;
+                }
+                return; // Nothing else happens for node 0 after prologue
+            }
+
+            if(gameState.unlockedLevels.includes(levelNum)) {
+                const introKey = `l${levelNum}_intro`;
+                
+                const initLogic = () => {
+                    showScreen(levelNum);
+                    if(levelNum === 1) initLevel1();
+                    if(levelNum === 2) initLevel2();
+                    if(levelNum === 3) initLevel3();
+                    if(levelNum === 4) initLevel4();
+                    if(levelNum === 5) initLevel5();
+                    if(levelNum === 6) initSLCharSelect(); 
+                    if(levelNum === 7) initLevel7();
+                    if(levelNum === 8) initLevel8();
+                };
+
+                // Play intro story if not seen
+                if(!gameState.storySeen[introKey]) {
+                    playStory(introKey, initLogic);
+                } else {
+                    initLogic();
+                }
+            }
+        }
+
+        // Generic Outro Trigger
+        function triggerLevelOutro(levelNum) {
+            const outroKey = `l${levelNum}_outro`;
+            if(storyScript[outroKey] && !gameState.storySeen[outroKey]) {
+                playStory(outroKey, () => completeLevel(levelNum));
+            } else {
+                completeLevel(levelNum);
+            }
+        }
+
+        function drawMapPaths() {
+            const svg = document.getElementById('svg-paths');
+            svg.innerHTML = '';
+            
+            for(let i=0; i<pathSequence.length - 1; i++) {
+                const fromNode = pathSequence[i];
+                const toNode = pathSequence[i+1];
+                
+                const p1 = mapNodesData[fromNode];
+                const p2 = mapNodesData[toNode];
+                
+                let cx = (p1.x + p2.x) / 2;
+                let cy = Math.min(p1.y, p2.y) - 10;
+
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", `M ${p1.x} ${p1.y} Q ${cx} ${cy} ${p2.x} ${p2.y}`);
+                
+                let targetNum = toNode === 'start' ? 0 : parseInt(toNode);
+                let isUnlocked = gameState.unlockedLevels.includes(targetNum);
+                let isCompleted = gameState.completedLevels.includes(targetNum);
+
+                // Bright path if completed or unlocked, dim if locked
+                path.setAttribute("stroke", isCompleted || isUnlocked ? "#f59e0b" : "#d1d5db"); 
+                path.setAttribute("stroke-width", isCompleted || isUnlocked ? "0.8" : "0.4");
+                path.setAttribute("fill", "none");
+                if(!isCompleted && !isUnlocked) path.setAttribute("stroke-dasharray", "1, 1"); 
+                path.setAttribute("stroke-linecap", "round");
+                
+                svg.setAttribute('viewBox', '0 0 100 100');
+                svg.setAttribute('preserveAspectRatio', 'none');
+                
+                svg.appendChild(path);
+            }
+        }
+
+        function updateMapVisuals() {
+            for(let i=1; i<=8; i++) {
+                let node = document.getElementById(`node-${i}`);
+                let check = document.getElementById(`check-${i}`);
+                if(!node) continue;
+                
+                if(gameState.completedLevels.includes(i)) {
+                    node.classList.remove('locked', 'unlocked');
+                    node.classList.add('completed');
+                    if(check) check.classList.remove('hidden');
+                } else if(gameState.unlockedLevels.includes(i)) {
+                    node.classList.remove('locked', 'completed');
+                    node.classList.add('unlocked');
+                    if(check) check.classList.add('hidden');
+                } else {
+                    node.classList.remove('unlocked', 'completed');
+                    node.classList.add('locked');
+                    if(check) check.classList.add('hidden');
+                }
+            }
+            drawMapPaths();
+        }
+
+
+        // --- STORY MODE ENGINE ---
+        let currentStory = [];
+        let storyIndex = 0;
+        let typeWriterTimeout;
+        let isTyping = false;
+        let fullCurrentText = "";
+        let onStoryComplete = null;
+        let currentSceneId = "";
+
+        function playStory(sceneId, callback) {
+            currentSceneId = sceneId;
+            currentStory = storyScript[sceneId];
+            storyIndex = 0;
+            onStoryComplete = callback;
+            
+            showScreen('story');
+            renderDialog();
+        }
+
+        function renderDialog() {
+            if (storyIndex >= currentStory.length) {
+                finishStory();
+                return;
+            }
+
+            const dialog = currentStory[storyIndex];
+            
+            // UI Updates
+            document.getElementById('story-name-tag').textContent = dialog.char.toUpperCase();
+            document.getElementById('story-character-avatar').textContent = dialog.icon;
+            document.getElementById('story-character-expr').textContent = dialog.expr;
+            
+            let bgDiv = document.getElementById('story-bg');
+            bgDiv.className = `absolute inset-0 z-0 transition-colors duration-1000 flex items-center justify-center opacity-40 ${dialog.bg || 'bg-blue-300'}`;
+            document.getElementById('story-bg-emoji').textContent = dialog.bgEmoji || '';
+
+            // Reset text area
+            const textEl = document.getElementById('story-text');
+            textEl.textContent = "";
+            textEl.classList.add('typewriter-text');
+            document.getElementById('story-next-indicator').classList.add('hidden');
+            document.getElementById('story-choices').classList.add('hidden');
+            
+            fullCurrentText = dialog.text;
+            isTyping = true;
+            
+            let charIndex = 0;
+            
+            function typeNextChar() {
+                if(charIndex < fullCurrentText.length) {
+                    textEl.textContent += fullCurrentText.charAt(charIndex);
+                    charIndex++;
+                    typeWriterTimeout = setTimeout(typeNextChar, 30); // Typing speed
+                } else {
+                    finishTyping();
+                }
+            }
+            
+            clearTimeout(typeWriterTimeout);
+            typeNextChar();
+        }
+
+        function finishTyping() {
+            isTyping = false;
+            clearTimeout(typeWriterTimeout);
+            
+            const textEl = document.getElementById('story-text');
+            textEl.textContent = fullCurrentText; // Ensure full text is present
+            textEl.classList.remove('typewriter-text');
+            
+            const dialog = currentStory[storyIndex];
+            
+            if (dialog.choices && dialog.choices.length > 0) {
+                // Show choices
+                let choicesDiv = document.getElementById('story-choices');
+                choicesDiv.innerHTML = '';
+                dialog.choices.forEach(c => {
+                    let btn = document.createElement('button');
+                    btn.className = "bg-amber-100 hover:bg-amber-200 text-amber-900 border-2 border-amber-600 font-bold py-3 px-6 rounded-xl shadow text-left transition transform hover:scale-[1.02] active:scale-95";
+                    btn.textContent = c.text;
+                    btn.onclick = (e) => {
+                        e.stopPropagation(); // prevent triggering parent click
+                        handleChoice(c.action);
+                    };
+                    choicesDiv.appendChild(btn);
+                });
+                choicesDiv.classList.remove('hidden');
+                choicesDiv.classList.add('flex');
+            } else {
+                // Show Next indicator
+                document.getElementById('story-next-indicator').classList.remove('hidden');
+            }
+        }
+
+        function handleDialogClick() {
+            if (isTyping) {
+                // Fast forward typing
+                finishTyping();
+            } else {
+                // If there are choices, do not proceed on generic click
+                if (currentStory[storyIndex].choices) return;
+                
+                storyIndex++;
+                renderDialog();
+            }
+        }
+
+        function handleChoice(action) {
+            if(action === 'next') {
+                storyIndex++;
+                renderDialog();
+            } else {
+                // E.g., 'map_explain' jumps to another script array
+                currentStory = storyScript[action];
+                storyIndex = 0;
+                renderDialog();
+            }
+        }
+
+        function skipStory(e) {
+            e.stopPropagation();
+            finishStory();
+        }
+
+        function finishStory() {
+            isTyping = false;
+            clearTimeout(typeWriterTimeout);
+            gameState.storySeen[currentSceneId] = true;
+            if (onStoryComplete) onStoryComplete();
+        }
+
+
+        function showModal(title, cat, desc, icon) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-category').textContent = "Kategori: " + cat;
+            document.getElementById('modal-desc').textContent = desc;
+            document.getElementById('modal-icon').textContent = icon;
+            
+            const modal = document.getElementById('generic-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => document.getElementById('modal-content-box').classList.remove('scale-95'), 10);
+        }
+        
+        function closeModal() {
+            document.getElementById('modal-content-box').classList.add('scale-95');
+            setTimeout(() => document.getElementById('generic-modal').classList.add('hidden'), 200);
+        }
+
+        // Level 1 Logic
+        let l1Progress = new Set();
+        function initLevel1() {
+            l1Progress.clear();
+            document.getElementById('btn-finish-l1').disabled = true;
+            document.getElementById('btn-finish-l1').classList.replace('bg-green-500', 'bg-gray-400');
+            document.getElementById('btn-finish-l1').classList.replace('border-green-700', 'border-gray-500');
+            document.getElementById('btn-finish-l1').textContent = "BACA SEMUA MATERI DULU";
+            document.getElementById('btn-finish-l1').classList.remove('hover:bg-green-600', 'cursor-pointer', 'animate-pulse');
+            document.getElementById('btn-finish-l1').classList.add('cursor-not-allowed');
+        }
+
+        const l1Data = {
+            'input': { t: 'INPUT DEVICE', c: 'Memasukkan Data', d: 'Digunakan untuk memasukkan perintah. Contoh: Keyboard ⌨️, Mouse 🖱️, Microphone 🎤, Webcam 📷.', i: '⌨️' },
+            'processing': { t: 'PROCESSING', c: 'Mengolah Data', d: 'Mengolah data dan menjalankan perintah. Contoh: Processor 🧠, RAM 🟩, Motherboard 🔲.', i: '🧠' },
+            'output': { t: 'OUTPUT DEVICE', c: 'Menampilkan Hasil', d: 'Menampilkan informasi dari komputer. Contoh: Monitor 🖥️, Speaker 🔊, Printer 🖨️.', i: '🖥️' },
+            'storage': { t: 'STORAGE', c: 'Menyimpan Data', d: 'Menyimpan data secara permanen. Contoh: SSD 💾, HDD 💽, Flashdisk 🔌.', i: '💾' },
+            'general': { t: 'HARDWARE', c: 'Perangkat Keras', d: 'Hardware adalah bagian komputer yang dapat DILIHAT dan DISENTUH secara langsung.', i: '💻' }
+        };
+
+        function showL1Modal(type) {
+            let d = l1Data[type];
+            showModal(d.t, d.c, d.d, d.i);
+            l1Progress.add(type);
+            checkL1Progress();
+        }
+
+        function checkL1Progress() {
+            if(l1Progress.size === 5) {
+                let btn = document.getElementById('btn-finish-l1');
+                btn.disabled = false;
+                btn.classList.replace('bg-gray-400', 'bg-green-500');
+                btn.classList.replace('border-gray-500', 'border-green-700');
+                btn.classList.remove('cursor-not-allowed');
+                btn.classList.add('hover:bg-green-600', 'cursor-pointer', 'animate-pulse');
+                btn.textContent = "🎉 MATERI SELESAI (Lanjut)";
+            }
+        }
+
+        function completeLevel1() {
+            addReward(30, 10, 1, 0);
+            triggerLevelOutro(1); // Trigger outro story before completing
+        }
+
+
+        const l2Questions = [
+            {q: "Apa itu Hardware?", opts: ["Perangkat Lunak", "Perangkat Keras fisik", "Jaringan Internet", "Virus Komputer"], a: 1, exp: "Hardware adalah perangkat keras yang dapat disentuh."},
+            {q: "Manakah yang termasuk Input Device?", opts: ["Monitor", "Printer", "Mouse", "Speaker"], a: 2, exp: "Mouse digunakan untuk memasukkan perintah (input)."},
+            {q: "Otak dari sebuah komputer disebut...", opts: ["RAM", "SSD", "Processor (CPU)", "Monitor"], a: 2, exp: "Processor memproses semua data seperti otak."},
+            {q: "Alat untuk menampilkan gambar disebut...", opts: ["Monitor", "Keyboard", "Scanner", "Microphone"], a: 0, exp: "Monitor menampilkan hasil output berupa visual."},
+            {q: "Untuk menyimpan data secara permanen kita gunakan...", opts: ["RAM", "SSD / HDD", "Motherboard", "VGA"], a: 1, exp: "SSD/HDD berfungsi sebagai media penyimpanan."},
+            {q: "Keyboard berfungsi untuk...", opts: ["Mendengar suara", "Mengetik huruf/angka", "Mencetak kertas", "Menyimpan foto"], a: 1, exp: "Keyboard adalah alat input untuk mengetik."},
+            {q: "Manakah yang BUKAN output device?", opts: ["Printer", "Speaker", "Monitor", "Webcam"], a: 3, exp: "Webcam adalah Input Device (menangkap gambar)."},
+            {q: "RAM digunakan untuk...", opts: ["Menyimpan data selamanya", "Pendingin CPU", "Penyimpanan sementara", "Mengetik"], a: 2, exp: "RAM menyimpan data sementara saat PC hidup."},
+            {q: "Alat cetak ke kertas disebut...", opts: ["Monitor", "Mouse", "Printer", "Flashdisk"], a: 2, exp: "Printer mencetak data digital menjadi fisik."},
+            {q: "Papan sirkuit utama tempat semua komponen terpasang adalah...", opts: ["Casing", "Motherboard", "Power Supply", "Monitor"], a: 1, exp: "Motherboard menyambungkan semua perangkat."}
+        ];
+        
+        let qIndex = 0;
+        let qCorrect = 0;
+
+        function initLevel2() {
+            qIndex = 0; qCorrect = 0;
+            document.getElementById('quiz-container').classList.remove('hidden');
+            document.getElementById('quiz-result').classList.add('hidden');
+            document.getElementById('quiz-feedback').classList.add('hidden');
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            let q = l2Questions[qIndex];
+            document.getElementById('q-current').textContent = qIndex + 1;
+            document.getElementById('quiz-progress').style.width = `${((qIndex)/10)*100}%`;
+            document.getElementById('question-text').textContent = q.q;
+            
+            let optsDiv = document.getElementById('options-container');
+            optsDiv.innerHTML = '';
+            q.opts.forEach((opt, idx) => {
+                let btn = document.createElement('button');
+                btn.className = "bg-white border-2 border-blue-300 text-blue-900 font-bold py-3 px-4 rounded-xl hover:bg-blue-50 text-left transition transform hover:scale-[1.02] active:scale-95 shadow-sm";
+                btn.textContent = ['A', 'B', 'C', 'D'][idx] + '. ' + opt;
+                btn.onclick = () => answerQuestion(idx);
+                optsDiv.appendChild(btn);
+            });
+        }
+
+        function answerQuestion(idx) {
+            let q = l2Questions[qIndex];
+            let isCorrect = (idx === q.a);
+            
+            document.getElementById('quiz-container').classList.add('hidden');
+            let fb = document.getElementById('quiz-feedback');
+            fb.classList.remove('hidden');
+            
+            if(isCorrect) {
+                qCorrect++;
+                fb.className = "text-center p-4 rounded-xl mt-4 border-2 bg-green-100 border-green-400";
+                document.getElementById('feedback-title').textContent = "🟢 CORRECT! 🎉";
+                document.getElementById('feedback-title').className = "text-2xl font-bold fredoka mb-2 text-green-700";
+                document.getElementById('feedback-text').textContent = "Hebat! Jawabanmu benar! (+10 XP, +5 Coins)";
+                addReward(10, 5, 0, 0);
+            } else {
+                fb.className = "text-center p-4 rounded-xl mt-4 border-2 bg-red-100 border-red-400 animate-shake";
+                document.getElementById('feedback-title').textContent = "🔴 TRY AGAIN!";
+                document.getElementById('feedback-title').className = "text-2xl font-bold fredoka mb-2 text-red-700";
+                document.getElementById('feedback-text').textContent = q.exp;
+            }
+        }
+
+        function nextQuestion() {
+            document.getElementById('quiz-feedback').classList.add('hidden');
+            qIndex++;
+            if(qIndex < l2Questions.length) {
+                document.getElementById('quiz-container').classList.remove('hidden');
+                loadQuestion();
+            } else {
+                showQuizResult();
+            }
+        }
+
+        function showQuizResult() {
+            document.getElementById('quiz-progress').style.width = `100%`;
+            document.getElementById('quiz-result').classList.remove('hidden');
+            document.getElementById('res-correct').textContent = qCorrect + "/10";
+            document.getElementById('res-wrong').textContent = (10 - qCorrect) + "/10";
+            
+            let xpEarned = qCorrect * 5; 
+            let coinsEarned = qCorrect * 2;
+            let starsEarned = qCorrect >= 8 ? 3 : (qCorrect >= 5 ? 2 : 1);
+            
+            document.getElementById('res-xp').textContent = "+" + xpEarned;
+            document.getElementById('res-coins').textContent = "+" + coinsEarned;
+            addReward(xpEarned, coinsEarned, starsEarned, 0);
+        }
+
+
+        const l3Words = [
+            {w: "MOUSE", e: "🖱️"}, {w: "KEYBOARD", e: "⌨️"}, {w: "MONITOR", e: "🖥️"},
+            {w: "PRINTER", e: "🖨️"}, {w: "SPEAKER", e: "🔊"}, {w: "SCANNER", e: "📠"},
+            {w: "WEBCAM", e: "📷"}, {w: "PROCESSOR", e: "🧠"}
+        ];
+        let l3Index = 0;
+        let l3CurrentWord = "";
+        let l3Letters = [];
+        let selectedLetterSpan = null; 
+
+        function initLevel3() {
+            l3Index = 0;
+            document.getElementById('btn-finish-l3').classList.add('hidden');
+            loadWord();
+        }
+
+        function loadWord() {
+            let data = l3Words[l3Index];
+            l3CurrentWord = data.w;
+            document.getElementById('word-current-num').textContent = l3Index + 1;
+            document.getElementById('word-target-emoji').textContent = data.e;
+            
+            l3Letters = l3CurrentWord.split('').sort(() => 0.5 - Math.random());
+            
+            let dropZones = document.getElementById('word-drop-zones');
+            let dragPool = document.getElementById('word-drag-letters');
+            dropZones.innerHTML = ''; dragPool.innerHTML = '';
+            
+            for(let i=0; i<l3CurrentWord.length; i++) {
+                let slot = document.createElement('div');
+                slot.className = "w-10 h-12 md:w-12 md:h-14 border-4 border-dashed border-purple-300 rounded-lg flex items-center justify-center font-bold text-2xl fredoka text-purple-700 bg-white/50 cursor-pointer transition transform";
+                slot.dataset.index = i;
+                slot.onclick = () => slotClicked(slot);
+                dropZones.appendChild(slot);
+            }
+
+            l3Letters.forEach((l, i) => {
+                let block = document.createElement('div');
+                block.className = "w-10 h-12 md:w-12 md:h-14 bg-blue-500 text-white border-b-4 border-blue-700 rounded-lg flex items-center justify-center font-bold text-2xl fredoka cursor-pointer hover:bg-blue-400 transition shadow-md";
+                block.textContent = l;
+                block.id = 'letter-' + i;
+                block.onclick = () => letterClicked(block);
+                dragPool.appendChild(block);
+            });
+            
+            document.getElementById('btn-check-word').classList.remove('hidden');
+            document.getElementById('word-feedback').textContent = "";
+        }
+
+        function letterClicked(block) {
+            if(selectedLetterSpan) selectedLetterSpan.classList.remove('ring-4', 'ring-yellow-400', 'scale-110', '-translate-y-2');
+            
+            if(selectedLetterSpan === block) {
+                selectedLetterSpan = null; 
+            } else {
+                selectedLetterSpan = block;
+                block.classList.add('ring-4', 'ring-yellow-400', 'scale-110', '-translate-y-2');
+            }
+        }
+
+        function slotClicked(slot) {
+            if(selectedLetterSpan) {
+                if(slot.children.length > 0) {
+                    let existing = slot.children[0];
+                    selectedLetterSpan.parentNode.appendChild(existing);
+                }
+                slot.appendChild(selectedLetterSpan);
+                selectedLetterSpan.classList.remove('ring-4', 'ring-yellow-400', 'scale-110', '-translate-y-2');
+                selectedLetterSpan = null;
+                slot.classList.add('scale-105');
+                setTimeout(() => slot.classList.remove('scale-105'), 200);
+            } else if(slot.children.length > 0) {
+                let existing = slot.children[0];
+                document.getElementById('word-drag-letters').appendChild(existing);
+            }
+        }
+
+        function checkWordPuzzle() {
+            let slots = document.getElementById('word-drop-zones').children;
+            let formed = "";
+            for(let i=0; i<slots.length; i++) {
+                if(slots[i].children.length > 0) {
+                    formed += slots[i].children[0].textContent;
+                }
+            }
+
+            let fb = document.getElementById('word-feedback');
+            if(formed === l3CurrentWord) {
+                fb.textContent = "🎉 AMAZING!";
+                fb.className = "h-12 font-bold text-xl fredoka mb-4 text-green-600 animate-bounce-sm";
+                addReward(15, 5, 0, 0);
+                
+                // Add glow to letters
+                for(let i=0; i<slots.length; i++) {
+                    if(slots[i].children.length > 0) slots[i].children[0].classList.add('bg-green-500', 'border-green-700');
+                }
+
+                setTimeout(() => {
+                    l3Index++;
+                    if(l3Index < l3Words.length) {
+                        loadWord();
+                    } else {
+                        document.getElementById('btn-check-word').classList.add('hidden');
+                        document.getElementById('btn-finish-l3').classList.remove('hidden');
+                        document.getElementById('word-drop-zones').innerHTML = '<div class="text-3xl text-green-600 font-bold fredoka animate-pulse">🏆 WORD MASTER!</div>';
+                        document.getElementById('word-drag-letters').innerHTML = '';
+                        fb.textContent = "";
+                    }
+                }, 1000);
+            } else {
+                fb.textContent = "😅 BELUM TEPAT! Coba susun kembali hurufnya.";
+                fb.className = "h-12 font-bold text-xl fredoka mb-4 text-red-500 animate-shake";
+            }
+        }
+
+
+        const l4Items = [
+            {i: '⌨️', n: 'Keyboard', c: 'input'}, {i: '🖱️', n: 'Mouse', c: 'input'}, {i: '🎤', n: 'Microphone', c: 'input'},
+            {i: '🖥️', n: 'Monitor', c: 'output'}, {i: '🔊', n: 'Speaker', c: 'output'}, {i: '🖨️', n: 'Printer', c: 'output'},
+            {i: '🧠', n: 'Processor', c: 'processing'}, {i: '🟩', n: 'RAM', c: 'processing'},
+            {i: '💾', n: 'SSD', c: 'storage'}, {i: '🔌', n: 'Flashdisk', c: 'storage'}
+        ];
+        let l4Placed = 0;
+
+        function initLevel4() {
+            l4Placed = 0;
+            document.getElementById('btn-finish-l4').classList.add('hidden');
+            document.getElementById('l4-feedback').textContent = "";
+            
+            let pool = document.getElementById('hw-pool');
+            pool.innerHTML = '';
+            document.querySelectorAll('#screen-4 .dropzone').forEach(dz => dz.innerHTML = '');
+
+            l4Items.forEach((item, idx) => {
+                let div = document.createElement('div');
+                div.className = "bg-white p-2 rounded shadow border border-gray-300 flex flex-col items-center draggable hover:scale-105 transition-transform";
+                div.draggable = true;
+                div.id = 'hw-item-' + idx;
+                div.dataset.category = item.c;
+                div.innerHTML = `<span class="text-3xl pointer-events-none">${item.i}</span><span class="text-[10px] font-bold pointer-events-none">${item.n}</span>`;
+                
+                div.addEventListener('dragstart', handleDragStart);
+                pool.appendChild(div);
+            });
+
+            document.querySelectorAll('#screen-4 .dropzone').forEach(dz => {
+                dz.addEventListener('dragover', handleDragOver);
+                dz.addEventListener('dragleave', handleDragLeave);
+                dz.addEventListener('drop', handleDropCategory);
+            });
+        }
+
+        let draggedEl = null;
+
+        function handleDragStart(e) {
+            draggedEl = this;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', this.innerHTML);
+            setTimeout(() => this.classList.add('opacity-50'), 0);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDragLeave(e) {
+            this.classList.remove('drag-over');
+        }
+
+        function handleDropCategory(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            
+            if(draggedEl) {
+                let targetCat = this.dataset.category;
+                let itemCat = draggedEl.dataset.category;
+                let fb = document.getElementById('l4-feedback');
+                
+                draggedEl.classList.remove('opacity-50');
+
+                if(targetCat === itemCat) {
+                    draggedEl.draggable = false; 
+                    draggedEl.className = "bg-green-100 p-1 rounded border border-green-400 flex flex-col items-center animate-bounce-sm"; 
+                    this.appendChild(draggedEl);
+                    fb.textContent = "🎉 CORRECT! (+10 XP)";
+                    fb.className = "font-bold text-lg mb-2 h-6 text-green-600";
+                    addReward(10, 0, 0, 0);
+                    l4Placed++;
+                    
+                    setTimeout(()=> draggedEl.classList.remove('animate-bounce-sm'), 1000);
+
+                    if(l4Placed === l4Items.length) {
+                        fb.textContent = "🎉 HARDWARE SORTING MASTER!";
+                        addReward(50, 20, 2, 0);
+                        document.getElementById('btn-finish-l4').classList.remove('hidden');
+                    }
+                } else {
+                    fb.textContent = "😅 Hmm... coba lihat fungsi perangkat ini lagi.";
+                    fb.className = "font-bold text-lg mb-2 h-6 text-red-500 animate-shake";
+                }
+            }
+        }
+
+
+        const pcPartsData = [
+            {id: 'mobo', p: 'motherboard', n: 'Motherboard', s: 'bg-green-800 text-white w-24 h-32 text-xs'},
+            {id: 'cpu', p: 'processor', n: 'CPU', s: 'bg-gray-200 border-2 border-gray-400 w-12 h-12 text-[10px] text-black'},
+            {id: 'ram', p: 'ram', n: 'RAM Stick', s: 'bg-green-600 border border-green-800 w-4 h-16 text-[8px] text-white writing-vertical'},
+            {id: 'ssd', p: 'storage', n: 'SSD 1TB', s: 'bg-gray-800 text-white border-2 border-gray-600 w-16 h-24 text-[10px]'},
+            {id: 'psu', p: 'psu', n: 'Power Supply', s: 'bg-black text-gray-300 border-2 border-gray-600 w-24 h-16 text-[10px]'},
+            {id: 'gpu', p: 'gpu', n: 'VGA Card', s: 'bg-red-800 text-white border-2 border-red-900 w-24 h-8 text-[10px]'},
+            {id: 'fan', p: 'cooler', n: 'CPU Fan', s: 'bg-blue-300 border-4 border-blue-500 rounded-full w-12 h-12 text-[10px] text-black'}
+        ];
+
+        let l5Step = 0;
+        const l5Order = ['motherboard', 'processor', 'ram', 'storage', 'psu', 'gpu', 'cooler'];
+
+        function initLevel5() {
+            l5Step = 0;
+            document.getElementById('btn-finish-l5').classList.add('hidden');
+            document.getElementById('pc-monitor').classList.add('hidden');
+            updatePCStepUI();
+
+            let pool = document.getElementById('pc-parts');
+            pool.innerHTML = '';
+            
+            document.querySelectorAll('#screen-5 .dropzone').forEach(dz => {
+                dz.classList.add('hidden');
+                dz.innerHTML = dz.dataset.part.toUpperCase(); 
+            });
+            document.getElementById('slot-motherboard').classList.remove('hidden');
+
+            pcPartsData.forEach((part) => {
+                let div = document.createElement('div');
+                div.className = `flex items-center justify-center font-bold text-center draggable shadow-md ${part.s} active:scale-95 cursor-pointer hover:ring-2 hover:ring-blue-400`;
+                div.draggable = true;
+                div.id = 'pc-part-' + part.id;
+                div.dataset.part = part.p;
+                div.innerHTML = `<span>${part.n}</span>`;
+                
+                div.addEventListener('dragstart', handleDragStart);
+                
+                // Fallback click for mobile
+                div.onclick = () => {
+                    if(l5Order[l5Step] === part.p) {
+                         simulateDrop(part.p, div);
+                    } else {
+                        shakeElement(div);
+                    }
+                };
+
+                pool.appendChild(div);
+            });
+
+            document.querySelectorAll('#screen-5 .dropzone').forEach(dz => {
+                dz.addEventListener('dragover', handleDragOver);
+                dz.addEventListener('dragleave', handleDragLeave);
+                dz.addEventListener('drop', handleDropPC);
+            });
+        }
+
+        function updatePCStepUI() {
+            let instr = document.getElementById('pc-step-instr');
+            if(l5Step < l5Order.length) {
+                instr.textContent = `STEP ${l5Step + 1}: Pasang ${l5Order[l5Step].toUpperCase()}`;
+                instr.className = "bg-yellow-200 text-yellow-900 p-2 rounded-lg text-center font-bold text-sm mb-4 border border-yellow-400 transition-colors";
+            } else {
+                instr.textContent = "🎉 BUILD COMPLETE!";
+                instr.className = "bg-green-200 text-green-900 p-2 rounded-lg text-center font-bold text-sm mb-4 border border-green-400 animate-pulse";
+            }
+        }
+
+        function handleDropPC(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            
+            if(draggedEl) {
+                let targetPart = this.dataset.part;
+                let itemPart = draggedEl.dataset.part;
+                
+                if(targetPart === itemPart && l5Order[l5Step] === targetPart) {
+                    simulateDrop(targetPart, draggedEl);
+                } else {
+                    draggedEl.classList.remove('opacity-50');
+                    shakeElement(draggedEl);
+                }
+            }
+        }
+
+        function simulateDrop(targetPart, el) {
+            let dz = document.getElementById('slot-' + targetPart);
+            el.classList.remove('opacity-50');
+            el.draggable = false;
+            el.className = el.className.replace('draggable', 'absolute inset-0 m-auto z-10 w-full h-full hover:ring-0');
+            
+            dz.innerHTML = '';
+            dz.appendChild(el);
+            dz.classList.remove('border-dashed', 'border-2', 'bg-gray-700/50');
+            dz.classList.add('border-none', 'bg-transparent');
+            
+            // Snap effect
+            el.classList.add('scale-110');
+            setTimeout(() => el.classList.remove('scale-110'), 200);
+
+            l5Step++;
+            if(l5Step < l5Order.length) {
+                document.getElementById('slot-' + l5Order[l5Step]).classList.remove('hidden');
+            } else {
+                setTimeout(() => {
+                    document.getElementById('pc-monitor').classList.remove('hidden');
+                    document.getElementById('btn-finish-l5').classList.remove('hidden');
+                    addReward(100, 30, 2, 0);
+                }, 800);
+            }
+            updatePCStepUI();
+        }
+
+        function shakeElement(el) {
+            el.classList.add('animate-shake');
+            setTimeout(() => el.classList.remove('animate-shake'), 500);
+        }
+
+
+        let slState = {
+            p1Char: null, p2Char: null,
+            p1Pos: 1, p2Pos: 1,
+            isP1Turn: true,
+            isAnimating: false
+        };
+
+        const slSnakes = { 14: 4, 22: 10, 28: 12 };
+        const slLadders = { 3: 11, 8: 15, 17: 25 };
+        const slSpecials = { 5: 'coin', 13: 'star', 19: 'boost', 24: 'gem', 27: 'treasure' };
+
+        function initSLCharSelect() {
+            slState = { p1Char: null, p2Char: null, p1Pos: 1, p2Pos: 1, isP1Turn: true, isAnimating: false };
+            
+            document.getElementById('sl-char-select').classList.remove('hidden');
+            document.getElementById('sl-game-board').classList.add('hidden', 'flex');
+            document.getElementById('sl-winner-screen').classList.add('hidden');
+            document.getElementById('sl-start-game-btn-area').classList.add('hidden');
+            
+            document.getElementById('sl-indicator-p1').className = "w-full text-center md:text-left text-lg font-bold text-blue-700 px-4 py-2 bg-blue-100 rounded-lg border-2 border-blue-400";
+            document.getElementById('sl-indicator-p1').textContent = "👤 PLAYER 1 (Memilih...)";
+            document.getElementById('sl-indicator-p2').className = "w-full text-center md:text-right text-lg font-bold text-gray-400 px-4 py-2";
+            document.getElementById('sl-indicator-p2').textContent = "👤 PLAYER 2 (Menunggu...)";
+
+            document.querySelectorAll('.char-card').forEach(card => {
+                card.classList.remove('opacity-50', 'cursor-not-allowed', 'ring-4', 'ring-blue-500', 'bg-blue-50', 'ring-purple-500', 'bg-purple-50');
+                let existingTag = card.querySelector('.sl-player-tag');
+                if(existingTag) existingTag.remove();
+                
+                // Re-attach safe click listener via attribute parsing
+                let onclickAttr = card.getAttribute('onclick');
+                if(onclickAttr) {
+                    let match = onclickAttr.match(/'([^']+)'/);
+                    if(match) card.onclick = () => selectSLChar(match[1]);
+                }
+            });
+        }
+
+        function selectSLChar(charId) {
+            if(!slState.p1Char) {
+                slState.p1Char = charId;
+                
+                let card = document.querySelector(`[onclick="selectSLChar('${charId}')"]`);
+                card.classList.add('ring-4', 'ring-blue-500', 'bg-blue-50');
+                card.innerHTML += `<div class="sl-player-tag absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow">P1</div>`;
+                card.onclick = null; 
+
+                document.getElementById('sl-indicator-p1').className = "w-full text-center md:text-left text-lg font-bold text-gray-600 px-4 py-2 bg-white rounded-lg border border-gray-200";
+                document.getElementById('sl-indicator-p1').textContent = `👤 P1: ${charsData[charId].n}`;
+                
+                document.getElementById('sl-indicator-p2').className = "w-full text-center md:text-right text-lg font-bold text-purple-700 px-4 py-2 bg-purple-100 rounded-lg border-2 border-purple-400 animate-pulse";
+                document.getElementById('sl-indicator-p2').textContent = "👤 PLAYER 2 (Memilih...)";
+            } 
+            else if (!slState.p2Char) {
+                if(charId === slState.p1Char) return; 
+
+                slState.p2Char = charId;
+                
+                let card = document.querySelector(`[onclick="selectSLChar('${charId}')"]`);
+                card.classList.add('ring-4', 'ring-purple-500', 'bg-purple-50');
+                card.innerHTML += `<div class="sl-player-tag absolute -top-2 -right-2 bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow">P2</div>`;
+                
+                document.getElementById('sl-indicator-p2').className = "w-full text-center md:text-right text-lg font-bold text-gray-600 px-4 py-2 bg-white rounded-lg border border-gray-200";
+                document.getElementById('sl-indicator-p2').textContent = `👤 P2: ${charsData[charId].n}`;
+
+                document.getElementById('sl-start-game-btn-area').classList.remove('hidden');
+                document.getElementById('sl-start-game-btn-area').classList.add('flex');
+                
+                document.getElementById('sl-vs-p1').innerHTML = `${charsData[slState.p1Char].i} ${charsData[slState.p1Char].n}`;
+                document.getElementById('sl-vs-p2').innerHTML = `${charsData[slState.p2Char].i} ${charsData[slState.p2Char].n}`;
+            }
+        }
+
+        function startSLGame() {
+            document.getElementById('sl-char-select').classList.add('hidden');
+            document.getElementById('sl-game-board').classList.remove('hidden');
+            
+            buildSLBoard();
+            
+            document.getElementById('sl-icon-p1').textContent = charsData[slState.p1Char].i;
+            document.getElementById('sl-name-p1').textContent = charsData[slState.p1Char].n;
+            document.getElementById('pawn-1').textContent = charsData[slState.p1Char].i;
+            
+            document.getElementById('sl-icon-p2').textContent = charsData[slState.p2Char].i;
+            document.getElementById('sl-name-p2').textContent = charsData[slState.p2Char].n;
+            document.getElementById('pawn-2').textContent = charsData[slState.p2Char].i;
+
+            slState.isP1Turn = true;
+            updateSLTurnUI();
+            updatePawnPositions();
+        }
+
+        function buildSLBoard() {
+            let container = document.getElementById('board-container');
+            Array.from(container.children).forEach(c => {
+                if(!c.classList.contains('pawn')) c.remove();
+            });
+
+            // 30 Cells (5 rows x 6 cols), meandering visual is implied by sequential numbering and CSS
+            let numSequence = [
+                25,26,27,28,29,30,
+                19,20,21,22,23,24,
+                13,14,15,16,17,18,
+                7,8,9,10,11,12,
+                1,2,3,4,5,6
+            ];
+
+            numSequence.forEach(n => {
+                let content = `<span class="opacity-50 text-xs md:text-sm absolute top-1 left-1">${n}</span>`;
+                if(n === 30) content += '💎';
+                else if(slSnakes[n]) content += '🐍';
+                else if(slLadders[n]) content += '🪜';
+                else if(slSpecials[n]) {
+                    if(slSpecials[n]==='coin') content += '🪙';
+                    if(slSpecials[n]==='star') content += '⭐';
+                    if(slSpecials[n]==='boost') content += '⚡';
+                    if(slSpecials[n]==='gem') content += '💎';
+                    if(slSpecials[n]==='treasure') content += '🎁';
+                }
+                
+                let el = document.createElement('div');
+                el.className = "sl-cell";
+                el.id = 'cell-' + n;
+                el.innerHTML = content;
+                container.appendChild(el);
+            });
+            container.appendChild(document.getElementById('pawn-1'));
+            container.appendChild(document.getElementById('pawn-2'));
+        }
+
+        function updateSLTurnUI() {
+            let p1HUD = document.getElementById('sl-hud-p1');
+            let p2HUD = document.getElementById('sl-hud-p2');
+            let btn = document.getElementById('btn-roll-dice');
+            let status = document.getElementById('sl-turn-status');
+
+            if(slState.isP1Turn) {
+                p1HUD.className = "flex-1 bg-blue-100 border-4 border-blue-500 p-2 md:p-3 rounded-xl text-center shadow-lg transition-transform transform scale-105";
+                p2HUD.className = "flex-1 bg-gray-100 border-4 border-gray-300 p-2 md:p-3 rounded-xl text-center shadow opacity-50 scale-95 transition-transform";
+                btn.className = "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full border-b-4 border-blue-700 active:scale-95 text-xs md:text-sm w-full shadow-md";
+                btn.disabled = false;
+                status.textContent = `${charsData[slState.p1Char].n}'s Turn`;
+                status.className = "text-[10px] md:text-[12px] font-bold text-blue-600 mt-1";
+            } else {
+                p2HUD.className = "flex-1 bg-purple-100 border-4 border-purple-500 p-2 md:p-3 rounded-xl text-center shadow-lg transition-transform transform scale-105";
+                p1HUD.className = "flex-1 bg-gray-100 border-4 border-gray-300 p-2 md:p-3 rounded-xl text-center shadow opacity-50 scale-95 transition-transform";
+                btn.className = "bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-full border-b-4 border-purple-700 active:scale-95 text-xs md:text-sm w-full shadow-md";
+                btn.disabled = false;
+                status.textContent = `${charsData[slState.p2Char].n}'s Turn`;
+                status.className = "text-[10px] md:text-[12px] font-bold text-purple-600 mt-1";
+            }
+        }
+
+        function showSLMsg(text, isGood=true) {
+            let msg = document.getElementById('sl-msg');
+            msg.textContent = text;
+            msg.className = `bg-white px-6 py-2 rounded-full font-bold text-sm md:text-lg text-center shadow-sm border-2 h-10 flex items-center justify-center transition-opacity opacity-100 scale-110 duration-200 z-30 ${isGood ? 'border-green-400 text-green-700' : 'border-red-400 text-red-700'}`;
+            setTimeout(() => { msg.classList.remove('opacity-100', 'scale-110'); msg.classList.add('opacity-0'); }, 2000);
+        }
+
+        async function rollDice() {
+            if(slState.isAnimating) return;
+            slState.isAnimating = true;
+            
+            let btn = document.getElementById('btn-roll-dice');
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            document.getElementById('sl-turn-status').textContent = '🔒 Waiting...';
+
+            let dice = document.getElementById('sl-dice-result');
+            dice.classList.add('dice-roll-anim');
+            
+            let spins = 0;
+            let spinInt = setInterval(() => { dice.textContent = ['⚀','⚁','⚂','⚃','⚄','⚅'][spins%6]; spins++; }, 100);
+
+            let roll = Math.floor(Math.random() * 6) + 1;
+            
+            await new Promise(r => setTimeout(r, 600)); 
+            
+            clearInterval(spinInt);
+            dice.classList.remove('dice-roll-anim');
+            dice.textContent = ['⚀','⚁','⚂','⚃','⚄','⚅'][roll-1];
+
+            let player = slState.isP1Turn ? 1 : 2;
+            let currentPos = player === 1 ? slState.p1Pos : slState.p2Pos;
+            let charName = player === 1 ? charsData[slState.p1Char].n : charsData[slState.p2Char].n;
+            
+            showSLMsg(`${charName} rolls ${roll}!`);
+            
+            await movePawnStepByStep(player, currentPos, roll);
+        }
+
+        async function movePawnStepByStep(player, startPos, steps) {
+            let pPos = startPos;
+            for(let i=0; i<steps; i++) {
+                if(pPos >= 30) break;
+                pPos++;
+                if(player === 1) slState.p1Pos = pPos; else slState.p2Pos = pPos;
+                updatePawnPositions();
+                await new Promise(r => setTimeout(r, 300));
+            }
+            await checkLanding(player, pPos);
+        }
+
+        async function checkLanding(player, pos) {
+            let charName = player === 1 ? charsData[slState.p1Char].n : charsData[slState.p2Char].n;
+
+            if(pos >= 30) {
+                if(player === 1) slState.p1Pos = 30; else slState.p2Pos = 30;
+                updatePawnPositions();
+                triggerWin(player);
+                return;
+            }
+
+            if(slLadders[pos]) {
+                showSLMsg(`🪜 LADDER! Jalan pintas!`);
+                await new Promise(r => setTimeout(r, 1000));
+                if(player === 1) slState.p1Pos = slLadders[pos]; else slState.p2Pos = slLadders[pos];
+                updatePawnPositions();
+                addReward(10, 0, 0, 0); 
+            }
+            else if(slSnakes[pos]) {
+                showSLMsg(`🐍 OH NO! Turun!`, false);
+                await new Promise(r => setTimeout(r, 1000));
+                if(player === 1) slState.p1Pos = slSnakes[pos]; else slState.p2Pos = slSnakes[pos];
+                updatePawnPositions();
+            }
+            else if(slSpecials[pos]) {
+                let s = slSpecials[pos];
+                if(s === 'coin') { showSLMsg(`🪙 +10 Coins!`); addReward(0, 10, 0, 0); }
+                if(s === 'star') { showSLMsg(`⭐ +1 Star!`); addReward(0, 0, 1, 0); }
+                if(s === 'gem') { showSLMsg(`💎 +1 Gem!`); addReward(0, 0, 0, 1); }
+                if(s === 'treasure') { showSLMsg(`🎁 +20 XP!`); addReward(20, 0, 0, 0); }
+                if(s === 'boost') {
+                    showSLMsg(`⚡ BOOST! Maju 3 langkah!`);
+                    await new Promise(r => setTimeout(r, 1000));
+                    await movePawnStepByStep(player, pos, 3);
+                    return; 
+                }
+            }
+
+            slState.isP1Turn = !slState.isP1Turn;
+            slState.isAnimating = false;
+            updateSLTurnUI();
+        }
+
+        function updatePawnPositions() {
+            let c1 = document.getElementById('cell-' + slState.p1Pos);
+            let c2 = document.getElementById('cell-' + slState.p2Pos);
+            let p1 = document.getElementById('pawn-1');
+            let p2 = document.getElementById('pawn-2');
+            
+            let boardRect = document.getElementById('board-container').getBoundingClientRect();
+
+            if(c1) {
+                let rect = c1.getBoundingClientRect();
+                p1.style.left = (rect.left - boardRect.left + rect.width/2) + 'px';
+                p1.style.top = (rect.top - boardRect.top + rect.height/2) + 'px';
+            }
+            if(c2) {
+                let rect = c2.getBoundingClientRect();
+                p2.style.left = (rect.left - boardRect.left + rect.width/2) + 'px';
+                p2.style.top = (rect.top - boardRect.top + rect.height/2) + 'px';
+            }
+        }
+        
+        window.addEventListener('resize', () => {
+            if(gameState.currentScreen === 6 && !document.getElementById('sl-game-board').classList.contains('hidden')) {
+                updatePawnPositions();
+            }
+        });
+
+        function triggerWin(playerNum) {
+            document.getElementById('sl-game-board').classList.add('hidden');
+            let winScreen = document.getElementById('sl-winner-screen');
+            winScreen.classList.remove('hidden');
+            
+            let char = playerNum === 1 ? charsData[slState.p1Char] : charsData[slState.p2Char];
+            
+            document.getElementById('sl-win-title').textContent = `PLAYER ${playerNum} WINS!`;
+            document.getElementById('sl-win-icon').textContent = char.i;
+            
+            let winMsg = playerNum === 1 ? "Kiko berhasil menemukan jalan menuju harta karun!" : "Petualanganmu berhasil membawa kamu menuju harta karun!";
+            document.getElementById('sl-win-msg').textContent = winMsg;
+            
+            addReward(100, 50, 3, 0); 
+            addReward(30, 10, 1, 0);  
+        }
+
+
+        const l7Questions = [
+            {q: "Perangkat untuk mengetik huruf dan angka?", opts: ["Keyboard", "Mouse"], a: 0},
+            {q: "Otak yang memproses semua perintah komputer?", opts: ["Monitor", "Processor"], a: 1},
+            {q: "Alat untuk mencetak hasil ke kertas?", opts: ["Printer", "Scanner"], a: 0},
+            {q: "Tempat menyimpan data secara permanen?", opts: ["RAM", "SSD"], a: 1},
+            {q: "Papan utama tempat komponen dirakit?", opts: ["Motherboard", "Power Supply"], a: 0}
+        ];
+        let l7Index = 0;
+
+        function initLevel7() {
+            l7Index = 0;
+            document.getElementById('castle-challenge').classList.remove('hidden');
+            document.getElementById('castle-success').classList.add('hidden');
+            
+            for(let i=1; i<=5; i++) {
+                let door = document.getElementById('door-'+i);
+                door.className = "w-12 h-20 md:w-16 md:h-24 bg-amber-800 border-2 border-amber-950 rounded-t-xl flex flex-col items-center justify-center text-white font-bold shadow-inner relative overflow-hidden transition-all";
+                door.innerHTML = '<span class="text-2xl door-lock">🔒</span>';
+            }
+            
+            loadCastleQ();
+        }
+
+        function loadCastleQ() {
+            let q = l7Questions[l7Index];
+            document.getElementById('castle-q').textContent = `Pintu ${l7Index+1}: ${q.q}`;
+            let opts = document.getElementById('castle-opts');
+            opts.innerHTML = '';
+            
+            q.opts.forEach((opt, idx) => {
+                let btn = document.createElement('button');
+                btn.className = "bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow transition transform hover:scale-[1.02] active:scale-95";
+                btn.textContent = opt;
+                btn.onclick = () => answerCastleQ(idx);
+                opts.appendChild(btn);
+            });
+        }
+
+        function answerCastleQ(idx) {
+            let q = l7Questions[l7Index];
+            if(idx === q.a) {
+                let door = document.getElementById('door-' + (l7Index+1));
+                door.classList.replace('bg-amber-800', 'bg-amber-950'); 
+                door.innerHTML = '<span class="text-2xl">🚪</span>'; 
+                
+                l7Index++;
+                if(l7Index < l7Questions.length) {
+                    loadCastleQ();
+                } else {
+                    document.getElementById('castle-challenge').classList.add('hidden');
+                    document.getElementById('castle-success').classList.remove('hidden');
+                    addReward(100, 50, 5, 1);
+                }
+            } else {
+                let opts = document.getElementById('castle-opts');
+                opts.classList.add('animate-shake');
+                setTimeout(() => opts.classList.remove('animate-shake'), 500);
+            }
+        }
+
+
+        function initLevel8() {
+            // Nothing special to initialize, just make sure views are correct
+            document.getElementById('treasure-chest-view').classList.remove('hidden');
+            document.getElementById('final-summary-view').classList.add('hidden');
+            document.getElementById('chest').className = "text-[120px] cursor-pointer hover:scale-110 transition-transform duration-300 drop-shadow-2xl animate-float";
+            document.getElementById('chest').innerHTML = "🔒📦";
+            document.getElementById('chest-instruction').textContent = "Klik peti untuk membuka!";
+            document.getElementById('confetti-layer').innerHTML = ''; // reset
+        }
+
+        function openChest() {
+            let chest = document.getElementById('chest');
+            chest.classList.remove('animate-float');
+            chest.classList.add('animate-shake');
+            document.getElementById('chest-instruction').textContent = "CLACK! Membuka...";
+            
+            setTimeout(() => {
+                chest.innerHTML = '💎🪙⭐';
+                chest.classList.remove('animate-shake');
+                chest.classList.add('scale-150');
+                
+                // Add simple CSS confetti
+                createConfetti();
+
+                setTimeout(() => {
+                    triggerLevelOutro(8); // Call final story before showing summary
+                }, 1000);
+            }, 1000);
+        }
+
+        // Hooked into the completeLevel flow to show the final summary AFTER the story
+        const originalCompleteLevel = completeLevel;
+        completeLevel = function(levelNum) {
+            if(levelNum === 8) {
+                document.getElementById('treasure-chest-view').classList.add('hidden');
+                let summary = document.getElementById('final-summary-view');
+                summary.classList.remove('hidden');
+                
+                document.getElementById('final-stars').textContent = gameState.stars;
+                document.getElementById('final-coins').textContent = gameState.coins;
+                document.getElementById('final-gems').textContent = gameState.gems;
+                document.getElementById('final-xp').textContent = gameState.xp;
+            } else {
+                originalCompleteLevel(levelNum);
+            }
+        };
+
+        function createConfetti() {
+            const container = document.getElementById('confetti-layer');
+            const colors = ['#fde047', '#60a5fa', '#34d399', '#f87171', '#c084fc'];
+            for(let i=0; i<50; i++) {
+                let conf = document.createElement('div');
+                conf.style.position = 'absolute';
+                conf.style.width = '10px';
+                conf.style.height = '10px';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.left = Math.random() * 100 + '%';
+                conf.style.top = '-10px';
+                conf.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+                conf.style.transition = 'transform 2s ease-out, top 2s ease-in, opacity 2s';
+                
+                container.appendChild(conf);
+
+                // Animate
+                setTimeout(() => {
+                    conf.style.top = '100%';
+                    conf.style.transform = `rotate(${Math.random()*720}deg) translateX(${Math.random()*100 - 50}px)`;
+                    conf.style.opacity = '0';
+                }, 50);
+            }
+        }
+
+
+        // --- Initialize App ---
+        window.onload = () => {
+            updateHUD();
+            updateMapVisuals();
+            showScreen('map'); 
+            document.addEventListener('dragover', (e) => e.preventDefault());
+        };
+
+    </script>
+</body>
+</html>
